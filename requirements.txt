@@ -1,0 +1,6 @@
+PySide6-Essentials>=6.8.0
+discord.py>=2.4.0
+keyring>=25.0.0
+pynput>=1.8.0
+Pillow>=10.0.0
+pyinstaller>=6.10.0

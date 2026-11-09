@@ -1,0 +1,26 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Build Artifacts
+build/
+dist/
+*.spec
+_internal/
+*.exe
+
+# Local Databases & Secrets (DPAPI & SQLite runtime cache)
+*.db
+*.sqlite3
+pupusnipe.db
+
+# Test logs & scratch files
+*.log
+test.log
+test_write.txt
+scratch/
+
+# OS metadata
+.DS_Store
+Thumbs.db
