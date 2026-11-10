@@ -218,6 +218,11 @@ pupusnipes/
 - **Root Cause**: Query string parameters contained percent-encoded protocol links (`roblox%3A%2F%2F`) and variable query ordering.
 - **Solution**: Added multi-pass URL decoding in `extract_from_text()` to extract the direct protocol link `roblox://navigation/share_links?code=<CODE>&type=Server` with zero network overhead.
 
+### 12. `NameError: name 'DEFAULT_SOLS_RNG_PLACE_ID' is not defined`
+- **Symptom**: Application launch threw `NameError: name 'DEFAULT_SOLS_RNG_PLACE_ID' is not defined` in `main_window.py:63`.
+- **Root Cause**: In `pupusnipe/ui/main_window.py`, `from ..core.config import APP_NAME, APP_VERSION, AppConfig` omitted `DEFAULT_SOLS_RNG_PLACE_ID`.
+- **Solution**: Added `DEFAULT_SOLS_RNG_PLACE_ID` to imports from `..core.config` in `main_window.py`. Verified via standalone headless test and test suite.
+
 ---
 
 ## ⌨️ 5. Global Hotkey Reference

@@ -9,7 +9,7 @@ import time
 import winsound
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ..core.config import APP_NAME, APP_VERSION, AppConfig
+from ..core.config import APP_NAME, APP_VERSION, AppConfig, DEFAULT_SOLS_RNG_PLACE_ID
 from ..core.storage import StorageManager
 from ..core.detector import LinkDetector
 from ..core.matcher import KeywordMatcher
