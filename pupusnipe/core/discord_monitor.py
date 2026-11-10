@@ -63,6 +63,7 @@ class DiscordMonitor:
         self.is_paused = False
         self.is_locked = False
         self.monitored_channel_ids: Set[str] = set()
+        self._resolved_channels: Set[str] = set()
 
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -70,7 +71,11 @@ class DiscordMonitor:
 
     def set_monitored_channels(self, channel_ids: List[str]):
         """Updates the set of monitored channel IDs dynamically without restarting."""
-        self.monitored_channel_ids = {str(cid).strip() for cid in channel_ids if str(cid).strip()}
+        new_set = {str(cid).strip() for cid in channel_ids if str(cid).strip()}
+        if new_set == self.monitored_channel_ids:
+            return  # No change, prevent duplicate subscriptions and recursive UI loops
+        self.monitored_channel_ids = new_set
+        self._resolved_channels.clear()
         if self._client and self._loop and self._loop.is_running():
             asyncio.run_coroutine_threadsafe(self._subscribe_monitored_channels(), self._loop)
 
@@ -149,6 +154,7 @@ class DiscordMonitor:
                             )
                         except Exception:
                             pass
+                        self._resolved_channels.add(cid_str)
                         if self.on_channel_resolved:
                             self.on_channel_resolved(cid_str, s_id, s_name, c_name)
                         logger.info(f"[Discord] Live channel stream active for {c_name} in '{s_name}'")
@@ -365,12 +371,13 @@ class DiscordMonitor:
         # Dynamically record resolved channel and server metadata for the Servers tab
         if message.channel and hasattr(message.channel, "id"):
             cid_str = str(message.channel.id)
-            if cid_str in self.monitored_channel_ids:
+            if cid_str in self.monitored_channel_ids and cid_str not in self._resolved_channels:
                 s_name = str(message.guild.name) if message.guild else "Direct"
                 s_id = str(message.guild.id) if message.guild else "0"
                 c_name = f"#{message.channel.name}" if hasattr(message.channel, "name") else f"channel-{cid_str[-4:]}"
                 try:
                     self.storage.update_channel_metadata(cid_str, s_id, s_name, c_name)
+                    self._resolved_channels.add(cid_str)
                     if self.on_channel_resolved:
                         self.on_channel_resolved(cid_str, s_id, s_name, c_name)
                 except Exception:

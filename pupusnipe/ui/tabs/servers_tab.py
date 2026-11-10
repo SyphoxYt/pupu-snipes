@@ -123,6 +123,8 @@ class ServersTab(QtWidgets.QWidget):
         self.btn_remove.setMinimumHeight(38)
         self.btn_remove.clicked.connect(self._remove_selected)
 
+        self.btn_refresh.clicked.connect(lambda: self.load_channels(notify=False))
+
         header_layout.addWidget(self.btn_add)
         header_layout.addWidget(self.btn_refresh)
         header_layout.addWidget(self.btn_remove)
@@ -170,33 +172,63 @@ class ServersTab(QtWidgets.QWidget):
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
 
-    def load_channels(self):
+    def update_channel_info(self, channel_id: str, server_id: str, server_name: str, channel_name: str):
+        """
+        Updates the table row for a single channel in-place with zero UI overhead,
+        no table rebuilding, and no recursive signals.
+        """
+        cid_str = str(channel_id).strip()
+        found = False
+        for row in range(self.table.rowCount()):
+            cid_item = self.table.item(row, 4)
+            if cid_item and cid_item.text().strip() == cid_str:
+                found = True
+                # Server Name
+                is_resolved = bool(server_name and server_name not in ("0", "Sniper Channel", "Discord Server", "Direct"))
+                display_sname = server_name if is_resolved else "Resolving Server..."
+                item_sname = self.table.item(row, 1)
+                if not item_sname:
+                    item_sname = QtWidgets.QTableWidgetItem()
+                    self.table.setItem(row, 1, item_sname)
+                item_sname.setText(display_sname)
+                item_sname.setForeground(QtGui.QBrush(QtGui.QColor("#00ff88" if is_resolved else "#fbbf24")))
+                font_s = item_sname.font()
+                font_s.setBold(True)
+                item_sname.setFont(font_s)
+
+                # Server ID
+                display_sid = server_id if (server_id and server_id != "0") else "—"
+                item_sid = self.table.item(row, 2)
+                if not item_sid:
+                    item_sid = QtWidgets.QTableWidgetItem()
+                    self.table.setItem(row, 2, item_sid)
+                item_sid.setText(display_sid)
+                item_sid.setForeground(QtGui.QBrush(QtGui.QColor("#94a3b8")))
+
+                # Channel Name
+                c_name = channel_name
+                if not c_name or c_name.startswith("channel-"):
+                    display_cname = f"#{c_name}" if not c_name.startswith("#") else c_name
+                elif not c_name.startswith("#"):
+                    display_cname = f"#{c_name}"
+                else:
+                    display_cname = c_name
+                item_cname = self.table.item(row, 3)
+                if not item_cname:
+                    item_cname = QtWidgets.QTableWidgetItem()
+                    self.table.setItem(row, 3, item_cname)
+                item_cname.setText(display_cname)
+                item_cname.setForeground(QtGui.QBrush(QtGui.QColor("#00f0ff")))
+                font_c = item_cname.font()
+                font_c.setBold(True)
+                item_cname.setFont(font_c)
+                break
+
+        if not found:
+            self.load_channels(notify=False)
+
+    def load_channels(self, notify: bool = False):
         channels = self.storage.get_channels()
-
-        # Check if monitor client is connected and can resolve names immediately
-        client = None
-        if hasattr(self, "_main_window") and hasattr(self._main_window, "monitor"):
-            client = getattr(self._main_window.monitor, "_client", None)
-        elif self.parent() and hasattr(self.parent(), "monitor"):
-            client = getattr(self.parent().monitor, "_client", None)
-
-        if client and getattr(client, "is_ready", lambda: False)():
-            for ch in channels:
-                cid = ch["channel_id"]
-                s_name = ch.get("server_name", "")
-                if not s_name or s_name in ("0", "Sniper Channel", "Discord Server"):
-                    try:
-                        ch_obj = client.get_channel(int(cid))
-                        if ch_obj and hasattr(ch_obj, "guild") and ch_obj.guild:
-                            new_sname = str(ch_obj.guild.name)
-                            new_sid = str(ch_obj.guild.id)
-                            new_cname = f"#{ch_obj.name}" if hasattr(ch_obj, "name") else f"channel-{cid[-4:]}"
-                            self.storage.update_channel_metadata(cid, new_sid, new_sname, new_cname)
-                            ch["server_name"] = new_sname
-                            ch["server_id"] = new_sid
-                            ch["channel_name"] = new_cname
-                    except Exception:
-                        pass
 
         self.table.setRowCount(0)
         for ch in channels:
@@ -215,7 +247,7 @@ class ServersTab(QtWidgets.QWidget):
 
             # Server Name formatting
             s_name = ch.get("server_name", "")
-            is_resolved = bool(s_name and s_name not in ("0", "Sniper Channel", "Discord Server"))
+            is_resolved = bool(s_name and s_name not in ("0", "Sniper Channel", "Discord Server", "Direct"))
             display_sname = s_name if is_resolved else "Resolving Server..."
             item_sname = QtWidgets.QTableWidgetItem(display_sname)
             item_sname.setForeground(QtGui.QBrush(QtGui.QColor("#00ff88" if is_resolved else "#fbbf24")))
@@ -253,8 +285,9 @@ class ServersTab(QtWidgets.QWidget):
             self.table.setItem(row, 3, item_cname)
             self.table.setItem(row, 4, item_cid)
 
-        enabled_ids = [ch["channel_id"] for ch in channels if ch["enabled"]]
-        self.sig_channels_updated.emit(enabled_ids)
+        if notify:
+            enabled_ids = [ch["channel_id"] for ch in channels if ch["enabled"]]
+            self.sig_channels_updated.emit(enabled_ids)
 
     def _toggle_channel(self, channel_id: str, enabled: bool):
         self.storage.toggle_channel(channel_id, enabled)
@@ -273,7 +306,7 @@ class ServersTab(QtWidgets.QWidget):
                 channel_name=data["channel_name"],
                 enabled=True
             )
-            self.load_channels()
+            self.load_channels(notify=True)
 
     def _remove_selected(self):
         row = self.table.currentRow()
@@ -282,4 +315,4 @@ class ServersTab(QtWidgets.QWidget):
             if cid_item:
                 cid = cid_item.text().strip()
                 self.storage.delete_channel(cid)
-                self.load_channels()
+                self.load_channels(notify=True)

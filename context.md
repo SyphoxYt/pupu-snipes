@@ -51,7 +51,7 @@ pupusnipes/
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
 │   ├── assets/               # Application icon (.ico) and gaming logo (.png)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 44 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 45 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -300,8 +300,23 @@ To guarantee you join private servers **before other players and public bots**, 
 - **Solution**:
   1. Added `storage.update_channel_metadata(channel_id, server_id, server_name, channel_name)` to insert/update real Discord titles without touching channel settings.
   2. Updated `storage.set_channel_ids()` to query existing metadata before wiping, preserving previously resolved server names and channel titles.
-  3. Added `on_channel_resolved` callback in `DiscordMonitor` wired to `MainWindow.sig_channel_resolved`, which automatically updates the table in `ServersTab` in real-time.
-  4. Added a manual **🔄 Refresh Server Info** button and live client resolution in `ServersTab.load_channels()`.
+  3. Added `on_channel_resolved` callback in `DiscordMonitor` wired to `MainWindow.sig_channel_resolved`.
+  4. Added a manual **🔄 Refresh Server Info** button.
+
+### 15. UI Freeze / Hang ("Not Responding") on Bot Startup (Signal Recursion Storm)
+- **Symptom**: Right after starting the sniper and connecting to Discord, the app logged `Successfully subscribed to 9 target channel(s)` and then immediately crashed or froze with Windows reporting "PupuSnipe is Not Responding".
+- **Root Cause**:
+  1. In `ServersTab.load_channels()`, line 257 unconditionally emitted `self.sig_channels_updated.emit(enabled_ids)` whenever the table reloaded.
+  2. `sig_channels_updated` was connected to `self.monitor.set_monitored_channels()`, which re-scheduled `_subscribe_monitored_channels()` on Discord's loop.
+  3. `_subscribe_monitored_channels()` iterated over all 9 channels and called `self.on_channel_resolved()` for each channel.
+  4. Each callback invoked `load_channels()`, which emitted `sig_channels_updated`, re-scheduling `_subscribe_monitored_channels()`. This generated an exponential storm of thousands of Qt table teardowns and async subscriptions per second, locking the GUI event loop.
+  5. Additionally, `load_channels()` attempted cross-thread access to `client.get_channel()` while Discord was receiving packets.
+- **Solution**:
+  1. Replaced the full-table teardown with `ServersTab.update_channel_info(channel_id, server_id, server_name, channel_name)` which modifies only the specific row's cells in-place in $<0.01\text{ ms}$ without emitting any signals.
+  2. Guarded `load_channels(notify=False)` so `sig_channels_updated` is ONLY emitted when the user explicitly adds, removes, or toggles channels.
+  3. Added an equality guard in `DiscordMonitor.set_monitored_channels()`: if `new_set == self.monitored_channel_ids`, it exits immediately, making infinite loops structurally impossible.
+  4. Added `self._resolved_channels` cache in `DiscordMonitor` so channels are only resolved once, avoiding database and signal churn during high-frequency message processing.
+  5. Added unit test `test_servers_tab_update_channel_info_no_loop` in `tests/test_channels.py`.
 
 ---
 

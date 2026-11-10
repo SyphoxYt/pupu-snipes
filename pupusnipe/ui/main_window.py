@@ -719,7 +719,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_channel_resolved(self, cid: str, s_id: str, s_name: str, c_name: str):
         if hasattr(self, "tab_servers"):
-            self.tab_servers.load_channels()
+            self.tab_servers.update_channel_info(cid, s_id, s_name, c_name)
 
     def _load_persisted_settings(self):
         """Loads all persisted settings from SQLite storage into memory configuration."""

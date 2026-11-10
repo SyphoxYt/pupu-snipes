@@ -11,6 +11,7 @@ from pupusnipe.core.detector import LinkDetector
 from pupusnipe.core.matcher import KeywordMatcher
 from pupusnipe.core.launcher import RobloxLauncher
 from pupusnipe.ui.tabs.sniper_tab import SniperTab
+from pupusnipe.ui.tabs.servers_tab import ServersTab
 from PySide6 import QtWidgets
 
 
@@ -119,6 +120,29 @@ https://discord.com/channels/1271189424750989343/1444176397286510852
         self.assertEqual(channels["1396152378495078531"]["server_name"], "xe33Hunt")
         self.assertEqual(channels["1396152378495078531"]["channel_name"], "#🌸dreamspace")
         self.assertEqual(channels["999999999999999999"]["server_name"], "Discord Server")
+
+    def test_servers_tab_update_channel_info_no_loop(self):
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        self.storage.set_channel_ids(["1396152378495078531", "1445417690201325741"])
+        tab = ServersTab(self.storage)
+        tab.load_channels(notify=False)
+        self.assertEqual(tab.table.rowCount(), 2)
+
+        # Track if sig_channels_updated is emitted during update_channel_info
+        emitted = []
+        tab.sig_channels_updated.connect(lambda ids: emitted.append(ids))
+
+        # Update in-place
+        tab.update_channel_info("1396152378495078531", "123456789", "xe33Hunt", "#🌸dreamspace")
+
+        # Must NOT emit sig_channels_updated (preventing infinite loops)
+        self.assertEqual(len(emitted), 0)
+
+        # Table items must reflect the updated info
+        row_0_sname = tab.table.item(0, 1).text()
+        row_0_cname = tab.table.item(0, 3).text()
+        self.assertEqual(row_0_sname, "xe33Hunt")
+        self.assertEqual(row_0_cname, "#🌸dreamspace")
 
 
 if __name__ == "__main__":
