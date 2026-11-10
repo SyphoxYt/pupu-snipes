@@ -22,6 +22,26 @@ class TestStorage(unittest.TestCase):
         self.assertFalse(self.storage.get_setting("auto_join"))
         self.storage.set_setting("hotkey_toggle", "F9")
         self.assertEqual(self.storage.get_setting("hotkey_toggle"), "F9")
+        
+        # Test join methods
+        self.storage.set_setting("launch_method", "direct_exe")
+        self.assertEqual(self.storage.get_setting("launch_method"), "direct_exe")
+        self.storage.set_setting("roblox_client", "vanilla")
+        self.assertEqual(self.storage.get_setting("roblox_client"), "vanilla")
+
+        # Test UI scaling and window geometry
+        self.storage.set_setting("ui_scale", 1.25)
+        self.assertEqual(self.storage.get_setting("ui_scale"), 1.25)
+        self.storage.set_setting("window_width", 1400)
+        self.assertEqual(self.storage.get_setting("window_width"), 1400)
+        self.storage.set_setting("window_maximized", True)
+        self.assertTrue(self.storage.get_setting("window_maximized"))
+
+        # Test get_all_settings
+        all_s = self.storage.get_all_settings()
+        self.assertIn("launch_method", all_s)
+        self.assertEqual(all_s["launch_method"], "direct_exe")
+        self.assertEqual(all_s["ui_scale"], 1.25)
 
     def test_channels(self):
         self.storage.add_channel("111", "Server A", "222", "Channel General", True)

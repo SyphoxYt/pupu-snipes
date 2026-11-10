@@ -203,6 +203,51 @@ class TestLinkDetector(unittest.TestCase):
         self.assertEqual(link.link_code, "abcdef0123456789abcdef0123456789")
         self.assertIn("MARI", combined_text)
 
+    def test_pure_raw_standard_link_message(self):
+        # Plain Discord message with no embeds and no buttons
+        content = "https://www.roblox.com/games/15532314909/Sols-RNG?privateServerLinkCode=rawlinkcode987654"
+        link, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "rawlinkcode987654")
+        self.assertEqual(link.place_id, "15532314909")
+        self.assertEqual(link.protocol_url, "roblox://placeId=15532314909&linkCode=rawlinkcode987654")
+
+    def test_pure_raw_share_link_message(self):
+        # Plain share link message with no embeds
+        content = "https://www.roblox.com/share-links?code=1c0a5b1fedcd9843a7b858192b09806c&type=Server"
+        link, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "1c0a5b1fedcd9843a7b858192b09806c")
+        self.assertEqual(link.protocol_url, "roblox://navigation/share_links?code=1c0a5b1fedcd9843a7b858192b09806c&type=Server")
+
+    def test_pure_raw_protocol_link_message(self):
+        # Pure roblox:// protocol link in chat
+        content = "roblox://placeId=15532314909&linkCode=protocode555"
+        link, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "protocode555")
+        self.assertEqual(link.protocol_url, "roblox://placeId=15532314909&linkCode=protocode555")
+
+    def test_raw_link_with_chat_text(self):
+        # Raw link mixed with user chat message
+        content = "join up fast glitched biome spawned https://www.roblox.com/share?code=glitched112233&type=Server don't miss it"
+        link, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "glitched112233")
+        self.assertIn("glitched", combined_text.lower())
+
+    def test_raw_custom_service_links(self):
+        # Custom links like RoPro or JoinRBX sent as raw text
+        content = "join via ropro: https://ro.pro/join/roprocustomcode123"
+        link, _ = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "roprocustomcode123")
+
 
 if __name__ == "__main__":
     unittest.main()

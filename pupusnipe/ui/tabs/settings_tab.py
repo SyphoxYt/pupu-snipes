@@ -15,6 +15,7 @@ class SettingsTab(QtWidgets.QWidget):
     sig_token_saved = QtCore.Signal(str)
     sig_test_connection = QtCore.Signal(str)
     sig_clear_history = QtCore.Signal()
+    sig_ui_scale_changed = QtCore.Signal(float)
 
     def __init__(self, storage: StorageManager, parent=None):
         super().__init__(parent)
@@ -165,6 +166,30 @@ class SettingsTab(QtWidgets.QWidget):
         mgmt_layout.addStretch()
         main_layout.addWidget(mgmt_group)
 
+        # 4. UI Appearance & Display Scaling
+        scale_group = QtWidgets.QGroupBox("UI Appearance & Display Scaling")
+        scale_layout = QtWidgets.QHBoxLayout(scale_group)
+        scale_layout.setSpacing(12)
+        scale_layout.setContentsMargins(16, 22, 16, 16)
+
+        lbl_scale = QtWidgets.QLabel("Interface Display Zoom:")
+        lbl_scale.setStyleSheet("color: #cbd5e1; font-weight: 700; font-size: 12px;")
+        scale_layout.addWidget(lbl_scale)
+
+        self.combo_ui_scale = QtWidgets.QComboBox()
+        self.combo_ui_scale.addItems([
+            "90% (Compact)",
+            "100% (Default)",
+            "110% (Medium)",
+            "125% (Large)",
+            "150% (Extra Large)"
+        ])
+        self.combo_ui_scale.setMinimumHeight(36)
+        self.combo_ui_scale.currentIndexChanged.connect(self._on_scale_changed)
+        scale_layout.addWidget(self.combo_ui_scale, 1)
+        scale_layout.addStretch()
+        main_layout.addWidget(scale_group)
+
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
 
@@ -178,8 +203,26 @@ class SettingsTab(QtWidgets.QWidget):
             self.lbl_token_status.setText("No bot token saved yet.")
             self.lbl_token_status.setStyleSheet("color: #94a3b8;")
 
+        # Load UI Scale setting
+        try:
+            scale_val = float(self.storage.get_setting("ui_scale", 1.0))
+        except (ValueError, TypeError):
+            scale_val = 1.0
+        scale_map = {0.9: 0, 1.0: 1, 1.1: 2, 1.25: 3, 1.5: 4}
+        idx = scale_map.get(scale_val, 1)
+        self.combo_ui_scale.blockSignals(True)
+        self.combo_ui_scale.setCurrentIndex(idx)
+        self.combo_ui_scale.blockSignals(False)
+
         self._all_log_lines = get_in_memory_logs()
         self._refresh_console_view()
+
+    def _on_scale_changed(self, idx: int):
+        scale_factors = [0.9, 1.0, 1.1, 1.25, 1.5]
+        if 0 <= idx < len(scale_factors):
+            factor = scale_factors[idx]
+            self.storage.set_setting("ui_scale", factor)
+            self.sig_ui_scale_changed.emit(factor)
 
     def append_log_line(self, line: str):
         self._all_log_lines.append(line)

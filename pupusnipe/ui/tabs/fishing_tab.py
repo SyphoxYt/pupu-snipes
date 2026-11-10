@@ -202,6 +202,57 @@ class FishingTab(QtWidgets.QWidget):
             status_txt = "Idle"
         self.card_status.set_value(status_txt)
 
+    def load_settings(self, storage):
+        """Restores all fishing and camping settings from storage."""
+        if not storage:
+            return
+
+        # Checkboxes
+        auto_join = storage.get_setting("fishsol_auto_on_join", False)
+        self.chk_auto_join_fish.blockSignals(True)
+        self.chk_auto_join_fish.setChecked(bool(auto_join))
+        self.chk_auto_join_fish.blockSignals(False)
+
+        stay_biome = storage.get_setting("fishsol_stay_in_biome", True)
+        self.chk_stay_in_biome.blockSignals(True)
+        self.chk_stay_in_biome.setChecked(bool(stay_biome))
+        self.chk_stay_in_biome.blockSignals(False)
+
+        sell_all = storage.get_setting("fishsol_sell_all", True)
+        self.chk_sell_all.blockSignals(True)
+        self.chk_sell_all.setChecked(bool(sell_all))
+        self.chk_sell_all.blockSignals(False)
+
+        # Camping Biome combo
+        camping_biome = storage.get_setting("fishsol_camping_biome", "ANY SNIPED BIOME (Dynamic)")
+        idx = self.combo_camping_biome.findText(str(camping_biome))
+        if idx >= 0:
+            self.combo_camping_biome.blockSignals(True)
+            self.combo_camping_biome.setCurrentIndex(idx)
+            self.combo_camping_biome.blockSignals(False)
+
+        # Pathing mode combo
+        pathing = storage.get_setting("fishsol_pathing_mode", "Vip Pathing")
+        idx_p = self.combo_pathing.findText(str(pathing))
+        if idx_p >= 0:
+            self.combo_pathing.blockSignals(True)
+            self.combo_pathing.setCurrentIndex(idx_p)
+            self.combo_pathing.blockSignals(False)
+
+        # Resolution combo
+        res = storage.get_setting("fishsol_resolution", "1080p (1920x1080) [Recommended]")
+        idx_r = self.combo_res.findText(str(res))
+        if idx_r >= 0:
+            self.combo_res.blockSignals(True)
+            self.combo_res.setCurrentIndex(idx_r)
+            self.combo_res.blockSignals(False)
+
+        # Loop count spinbox
+        loop_cnt = storage.get_setting("fishsol_loop_count", 15)
+        self.spin_fish_loop.blockSignals(True)
+        self.spin_fish_loop.setValue(int(loop_cnt))
+        self.spin_fish_loop.blockSignals(False)
+
     def set_macro_status(self, text: str):
         self.card_status.set_value(text[:20])
 

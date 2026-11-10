@@ -74,6 +74,7 @@ DEFAULT_SNIPER_CHANNEL_PRESETS = [
 @dataclass
 class AppConfig:
     # General
+    place_id: str = DEFAULT_SOLS_RNG_PLACE_ID
     auto_join: bool = True
     prewarm_roblox: bool = False
     roblox_client: str = "voidstrap"  # "voidstrap" (Voidstrap), "vanilla" (Normal Roblox), "auto" (Windows Protocol Default)
@@ -82,6 +83,7 @@ class AppConfig:
     enable_notifications: bool = True
     play_sound: bool = True
     join_all_in_monitored_channels: bool = True  # Allows joining links in targeted channels without requiring keyword text
+    ui_scale: float = 1.0
     
     # Advanced Options (from Sol Sniper V3)
     close_roblox_before_joining: bool = False

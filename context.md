@@ -110,6 +110,22 @@ pupusnipes/
 - **Message Edit Gateway Listeners**: Added `@client.event async def on_message_edit` and `on_raw_message_edit` to `DiscordMonitor` to catch bots that initially send a plain notification and then edit it moments later to attach the embed and component buttons.
 - **Expanded Test Suite**: Added 5 new unit tests in `tests/test_detector.py` covering component buttons, tracking links, embed markdown links, and sub-place ID bindings. Total passing tests increased to 33.
 
+### Phase 8: Universal Settings Persistence & UI Display Scaling
+- **Automated Settings Persistence**: Every configuration toggle, dropdown, and spinbox across all tabs now saves immediately to SQLite (`settings` table) upon modification and automatically restores on application startup:
+  - **Join Methods**: `launch_method` (`protocol`, `direct_exe`, `system`) and `roblox_client` (`voidstrap`, `vanilla`, `auto`).
+  - **Sniper Options**: Dedicated channel mode, leave game before joining, close Roblox before joining, minimize other windows, auto-pause, place ID filters, duplicate cooldown, and custom link flags (RoPro, JoinRBX, RoSeal, FishStrap).
+  - **Fishing Macro Settings**: Auto-start on snipe, biome camping lock, camping target biome, selling pathing mode, screen resolution, sell-all toggle, and fish catch frequency.
+  - **Notification & Hotkey Settings**: Windows toast notifications, audio chime sound, and custom hotkey bindings (`F4`, `F5`, `F6`, `F7`, `F8`, `F9`).
+- **UI Window Scaling & Geometry Persistence**:
+  - Saved Qt window geometry (`saveGeometry().toHex()`), window width, window height, and maximized state on window close and resize.
+  - Automatically restores window dimensions, position, and maximized state when reopened.
+- **Dynamic UI Display Scale / Zoom Factor**:
+  - Added a UI Zoom control in Settings with presets: `90% (Compact)`, `100% (Default)`, `110% (Medium)`, `125% (Large)`, and `150% (Extra Large)`.
+  - Scales application-wide font metrics and persists cleanly to storage.
+- **Raw Links Verification & Comprehensive Tests**:
+  - Verified that raw standard links, raw share links, raw `roblox://` protocol URLs, raw links with surrounding chat text, and raw third-party service links continue to work with 100% accuracy.
+  - Added 5 new detector tests and expanded storage tests; test suite now passes 38 unit tests in 0.88s.
+
 ---
 
 ## 🐛 4. Everything That Didn't Work (Bugs Encountered) & How They Were Fixed

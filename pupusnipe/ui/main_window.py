@@ -55,10 +55,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1220, 780)
         self.setMinimumSize(980, 640)
 
-        # 1. Initialize Core Engines
+        # 1. Initialize Core Engines & Load Persisted Settings
         self.config = AppConfig()
         self.storage = StorageManager()
-        self.detector = LinkDetector(target_place_id=self.config.place_id)
+        self._load_persisted_settings()
+
+        self.detector = LinkDetector(target_place_id=getattr(self.config, "place_id", DEFAULT_SOLS_RNG_PLACE_ID))
+        self.detector.strict_place_id = bool(self.config.only_join_sols_links)
+        self.detector.snipe_ropro = bool(self.config.snipe_ropro_links)
+        self.detector.snipe_joinrbx = bool(self.config.snipe_joinrbx_links)
+        self.detector.snipe_roseal = bool(self.config.snipe_roseal_links)
+        self.detector.snipe_fishstrap = bool(self.config.snipe_fishstrap_links)
+
         self.matcher = KeywordMatcher()
         self.launcher = RobloxLauncher(cooldown_seconds=self.config.duplicate_cooldown_sec)
 
@@ -67,6 +75,7 @@ class MainWindow(QtWidgets.QMainWindow):
             on_status_change=lambda txt: self.sig_fishing_status.emit(txt),
             on_stats_update=lambda stats: self.sig_fishing_stats.emit(stats)
         )
+        self._load_persisted_fishing_settings()
 
         # Discord Monitor
         self.monitor = DiscordMonitor(
@@ -133,6 +142,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._set_app_icon()
         self.setStyleSheet(DARK_THEME_QSS)
         self._init_layout()
+
+        # Connect settings tab UI scale signal
+        self.tab_settings.sig_ui_scale_changed.connect(self._on_ui_scale_changed)
+
+        # Restore window geometry & UI scaling
+        self._restore_window_geometry()
+        self._apply_ui_scale(getattr(self.config, "ui_scale", 1.0))
+
+        # Push loaded settings to UI controls
+        self.tab_sniper.load_settings(self.config)
+        self.tab_fishing.load_settings(self.storage)
+        self.tab_misc.load_settings()
+        self.tab_settings.load_settings()
 
         # 3. Process Checker Timer
         self.proc_timer = QtCore.QTimer(self)
@@ -692,12 +714,105 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_servers.load_channels()
         logger.info(f"Updated monitored channels: {len(channel_ids)} specific channel(s).")
 
+    def _load_persisted_settings(self):
+        """Loads all persisted settings from SQLite storage into memory configuration."""
+        try:
+            saved = self.storage.get_all_settings()
+            for k, v in saved.items():
+                if hasattr(self.config, k):
+                    orig = getattr(self.config, k)
+                    if isinstance(orig, bool) and not isinstance(v, bool):
+                        v = bool(v)
+                    elif isinstance(orig, int) and not isinstance(v, int):
+                        try: v = int(v)
+                        except: pass
+                    elif isinstance(orig, float) and not isinstance(v, float):
+                        try: v = float(v)
+                        except: pass
+                    setattr(self.config, k, v)
+        except Exception as ex:
+            logger.warning(f"Could not load persisted configuration: {ex}")
+
+    def _load_persisted_fishing_settings(self):
+        """Loads all persisted fishing macro settings from SQLite storage."""
+        try:
+            saved = self.storage.get_all_settings()
+            if "fishsol_auto_on_join" in saved:
+                self.fishsol.auto_fish_on_join = bool(saved["fishsol_auto_on_join"])
+            if "fishsol_stay_in_biome" in saved:
+                self.fishsol.stay_in_target_biome = bool(saved["fishsol_stay_in_biome"])
+            if "fishsol_camping_biome" in saved:
+                self.fishsol.camping_target_biome = str(saved["fishsol_camping_biome"]).upper()
+            if "fishsol_pathing_mode" in saved:
+                self.fishsol.pathing_mode = str(saved["fishsol_pathing_mode"])
+            if "fishsol_resolution" in saved:
+                self.fishsol.resolution = str(saved["fishsol_resolution"]).split()[0]
+            if "fishsol_sell_all" in saved:
+                self.fishsol.sell_all = bool(saved["fishsol_sell_all"])
+            if "fishsol_loop_count" in saved:
+                self.fishsol.fishing_loop_count = int(saved["fishsol_loop_count"])
+            if "hotkeys" in saved and isinstance(saved["hotkeys"], dict):
+                for action, key_name in saved["hotkeys"].items():
+                    self.hotkeys.update_binding(action, key_name)
+        except Exception as ex:
+            logger.warning(f"Could not load persisted fishing settings: {ex}")
+
+    def _save_window_geometry(self):
+        """Saves window size, position, and maximized state to SQLite storage."""
+        try:
+            geom_hex = self.saveGeometry().toHex().data().decode("utf-8")
+            self.storage.set_setting("window_geometry", geom_hex)
+            self.storage.set_setting("window_maximized", self.isMaximized())
+            if not self.isMaximized():
+                self.storage.set_setting("window_width", self.width())
+                self.storage.set_setting("window_height", self.height())
+        except Exception:
+            pass
+
+    def _restore_window_geometry(self):
+        """Restores window size, position, and maximized state from SQLite storage."""
+        try:
+            geom_hex = self.storage.get_setting("window_geometry", "")
+            if geom_hex:
+                self.restoreGeometry(QtCore.QByteArray.fromHex(geom_hex.encode("utf-8")))
+            else:
+                w = self.storage.get_setting("window_width", 1220)
+                h = self.storage.get_setting("window_height", 780)
+                self.resize(int(w), int(h))
+
+            if self.storage.get_setting("window_maximized", False):
+                self.showMaximized()
+        except Exception:
+            pass
+
+    def _apply_ui_scale(self, factor: float):
+        """Applies dynamic font scaling across the entire application interface."""
+        try:
+            factor = max(0.75, min(2.0, float(factor)))
+            app = QtWidgets.QApplication.instance()
+            if app:
+                font = app.font()
+                base_pt = 9.0
+                font.setPointSizeF(base_pt * factor)
+                app.setFont(font)
+        except Exception as ex:
+            logger.warning(f"Could not apply UI scale: {ex}")
+
+    def _on_ui_scale_changed(self, factor: float):
+        self._apply_ui_scale(factor)
+        self.storage.set_setting("ui_scale", factor)
+        self._save_window_geometry()
+        logger.info(f"UI display zoom updated and saved: {factor * 100:.0f}%")
+
     def _on_config_changed(self, key: str, value):
         if key.startswith("cat_"):
             self._sync_profiles()
             self.tab_keywords.load_profiles()
             logger.info(f"Category profile updated: {key} = {value}")
             return
+
+        # Always persist setting to storage immediately
+        self.storage.set_setting(key, value)
 
         if hasattr(self.config, key):
             setattr(self.config, key, value)
@@ -715,9 +830,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.detector.snipe_roseal = bool(value)
             elif key == "snipe_fishstrap_links":
                 self.detector.snipe_fishstrap = bool(value)
-            logger.info(f"Setting updated: {key} = {value}")
+            logger.info(f"Setting updated and saved to storage: {key} = {value}")
 
     def _on_fishing_config_changed(self, key: str, value):
+        # Always persist fishing setting to storage immediately
+        self.storage.set_setting(key, value)
+
         if key == "fishsol_auto_on_join":
             self.fishsol.auto_fish_on_join = bool(value)
         elif key == "fishsol_stay_in_biome":
@@ -733,12 +851,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fishsol.sell_all = bool(value)
         elif key == "fishsol_loop_count":
             self.fishsol.fishing_loop_count = int(value)
-        logger.info(f"Fishing setting updated: {key} = {value}")
+        logger.info(f"Fishing setting updated and saved to storage: {key} = {value}")
 
     def _on_hotkeys_updated(self, hk_map: dict):
+        self.storage.set_setting("hotkeys", hk_map)
         for action, key_name in hk_map.items():
             self.hotkeys.update_binding(action, key_name)
-        logger.info(f"Hotkeys updated: {hk_map}")
+        logger.info(f"Hotkeys updated and saved to storage: {hk_map}")
 
     def _on_token_saved(self, token: str):
         # Sync between tabs
@@ -754,7 +873,17 @@ class MainWindow(QtWidgets.QMainWindow):
             "Token saved! You can now click 'START SNIPING (F4)' on the Dashboard or Sniper tab to connect."
         )
 
+    def resizeEvent(self, event: QtGui.QResizeEvent):
+        super().resizeEvent(event)
+        if not self.isMaximized():
+            try:
+                self.storage.set_setting("window_width", self.width())
+                self.storage.set_setting("window_height", self.height())
+            except Exception:
+                pass
+
     def closeEvent(self, event: QtGui.QCloseEvent):
+        self._save_window_geometry()
         self.stop_sniper()
         self.fishsol.stop()
         self.log_watcher.stop()

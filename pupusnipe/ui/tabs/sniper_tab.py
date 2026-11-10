@@ -446,6 +446,62 @@ class SniperTab(QtWidgets.QWidget):
                 if p.pause_duration > 0:
                     row.set_pause(p.pause_duration)
 
+    def load_settings(self, config):
+        """Restores all sniper settings and join methods from persisted configuration."""
+        if not config:
+            return
+
+        # Roblox Client combo
+        client_val = getattr(config, "roblox_client", "voidstrap")
+        client_map = {"voidstrap": 0, "vanilla": 1, "auto": 2}
+        client_idx = client_map.get(client_val, 0)
+        self.combo_roblox_client.blockSignals(True)
+        self.combo_roblox_client.setCurrentIndex(client_idx)
+        self.combo_roblox_client.blockSignals(False)
+        if hasattr(self, "combo_test_client"):
+            self.combo_test_client.blockSignals(True)
+            self.combo_test_client.setCurrentIndex(client_idx)
+            self.combo_test_client.blockSignals(False)
+
+        # Launch Method combo
+        launch_val = getattr(config, "launch_method", "protocol")
+        method_map = {"protocol": 0, "direct_exe": 1, "system": 2}
+        method_idx = method_map.get(launch_val, 0)
+        self.combo_launch_method.blockSignals(True)
+        self.combo_launch_method.setCurrentIndex(method_idx)
+        self.combo_launch_method.blockSignals(False)
+        if hasattr(self, "combo_test_method"):
+            self.combo_test_method.blockSignals(True)
+            self.combo_test_method.setCurrentIndex(method_idx)
+            self.combo_test_method.blockSignals(False)
+
+        # Checkboxes
+        checks = [
+            (self.chk_direct_channel, "join_all_in_monitored_channels"),
+            (self.chk_leave_game, "leave_game_before_joining"),
+            (self.chk_close_roblox, "close_roblox_before_joining"),
+            (self.chk_minimize_other, "minimize_other_windows"),
+            (self.chk_auto_pause, "auto_pause_sniper"),
+            (self.chk_only_sols, "only_join_sols_links"),
+            (self.chk_ropro, "snipe_ropro_links"),
+            (self.chk_joinrbx, "snipe_joinrbx_links"),
+            (self.chk_roseal, "snipe_roseal_links"),
+            (self.chk_fishstrap, "snipe_fishstrap_links"),
+        ]
+        for chk, attr in checks:
+            val = getattr(config, attr, None)
+            if val is not None:
+                chk.blockSignals(True)
+                chk.setChecked(bool(val))
+                chk.blockSignals(False)
+
+        # Cooldown spinbox
+        if hasattr(self, "spin_cooldown"):
+            cd = getattr(config, "duplicate_cooldown_sec", 180)
+            self.spin_cooldown.blockSignals(True)
+            self.spin_cooldown.setValue(int(cd))
+            self.spin_cooldown.blockSignals(False)
+
     def _toggle_token_visibility(self):
         if self.edit_token.echoMode() == QtWidgets.QLineEdit.Password:
             self.edit_token.setEchoMode(QtWidgets.QLineEdit.Normal)

@@ -156,7 +156,10 @@ class StorageManager:
 
     # --- Settings Key-Value ---
     def set_setting(self, key: str, value: Any):
-        val_str = json.dumps(value) if not isinstance(value, str) else value
+        try:
+            val_str = json.dumps(value)
+        except Exception:
+            val_str = str(value)
         conn = self._get_connection()
         try:
             conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, val_str))
@@ -177,6 +180,24 @@ class StorageManager:
                 except Exception:
                     return val
             return default
+        finally:
+            conn.close()
+
+    def get_all_settings(self) -> Dict[str, Any]:
+        """Loads all stored settings into a dictionary."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT key, value FROM settings")
+            result = {}
+            for row in cursor.fetchall():
+                k = row["key"]
+                v = row["value"]
+                try:
+                    result[k] = json.loads(v)
+                except Exception:
+                    result[k] = v
+            return result
         finally:
             conn.close()
 

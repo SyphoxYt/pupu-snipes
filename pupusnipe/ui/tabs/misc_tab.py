@@ -143,6 +143,33 @@ class MiscTab(QtWidgets.QWidget):
         outer_layout.addWidget(scroll)
 
     def load_settings(self):
+        # Load notification & sound toggles
+        toast_val = self.storage.get_setting("enable_notifications", True)
+        self.chk_toast.blockSignals(True)
+        self.chk_toast.setChecked(bool(toast_val))
+        self.chk_toast.blockSignals(False)
+
+        sound_val = self.storage.get_setting("play_sound", True)
+        self.chk_sound.blockSignals(True)
+        self.chk_sound.setChecked(bool(sound_val))
+        self.chk_sound.blockSignals(False)
+
+        # Load hotkeys
+        saved_hk = self.storage.get_setting("hotkeys", {})
+        if isinstance(saved_hk, dict):
+            if "toggle" in saved_hk:
+                self.edit_hk_toggle.setText(saved_hk["toggle"].upper())
+            if "pause" in saved_hk:
+                self.edit_hk_pause.setText(saved_hk["pause"].upper())
+            if "resume" in saved_hk:
+                self.edit_hk_resume.setText(saved_hk["resume"].upper())
+            if "emergency_stop" in saved_hk:
+                self.edit_hk_stop.setText(saved_hk["emergency_stop"].upper())
+            if "fish" in saved_hk:
+                self.edit_hk_fishsol.setText(saved_hk["fish"].upper())
+            if "reset_cooldown" in saved_hk:
+                self.edit_hk_reset_cd.setText(saved_hk["reset_cooldown"].upper())
+
         # Load blacklists
         self.list_users.clear()
         users = self.storage.get_blacklist("user")
