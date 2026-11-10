@@ -127,6 +127,82 @@ class TestLinkDetector(unittest.TestCase):
         self.assertEqual(link.link_code, "embedcode123")
         self.assertIn("Glitched", combined_text)
 
+    def test_component_button_extraction_and_priority(self):
+        # Simulates Shay's Glitch Hunt Bot:
+        # Message content has Discord jump links & user mentions
+        # Components contain [Join Server ↗] pointing to tracking share-link
+        content = "Message Jump to Message https://discord.com/channels/123/456/789\nMessage @Shayge"
+        embed = {
+            "title": "BIOME STARTED - CYBERSPACE Found",
+            "description": "Jump to Message: https://discord.com/channels/123/456/789",
+            "fields": [
+                {"name": "Status", "value": "Valid"},
+                {"name": "Place ID", "value": "15532962292"},
+                {"name": "Owner Profile", "value": "[Click Here](https://www.roblox.com/users/9999999/profile)"}
+            ]
+        }
+        tracking_url = (
+            "https://www.roblox.com/share-links?code=1c0a5b1fedcd9843a7b858192b09806c"
+            "&type=Server&deep_link_value=roblox%3A%2F%2Fnavigation%2Fshare_links%3Fcode%3D"
+            "1c0a5b1fedcd9843a7b858192b09806c%26type%3DServer&pid=Server&is_retargeting=false"
+        )
+        components = [
+            {
+                "type": 1,
+                "components": [
+                    {
+                        "type": 2,
+                        "style": 5,
+                        "label": "Join Server",
+                        "url": tracking_url
+                    }
+                ]
+            }
+        ]
+
+        link, combined_text = self.detector.extract_from_message(
+            content=content,
+            embeds=[embed],
+            components=components
+        )
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "1c0a5b1fedcd9843a7b858192b09806c")
+        self.assertIn("1c0a5b1fedcd9843a7b858192b09806c", link.protocol_url)
+        self.assertIn("CYBERSPACE", combined_text)
+        self.assertEqual(link.place_id, "15532962292")
+
+    def test_tracking_share_link_decoding(self):
+        tracking_url = (
+            "https://www.roblox.com/share-links?code=1c0a5b1fedcd9843a7b858192b09806c"
+            "&type=Server&deep_link_value=roblox%3A%2F%2Fnavigation%2Fshare_links%3Fcode%3D"
+            "1c0a5b1fedcd9843a7b858192b09806c%26type%3DServer&pid=Server&is_retargeting=false"
+        )
+        link = self.detector.extract_from_text(tracking_url)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "1c0a5b1fedcd9843a7b858192b09806c")
+        self.assertEqual(
+            link.protocol_url,
+            "roblox://navigation/share_links?code=1c0a5b1fedcd9843a7b858192b09806c&type=Server"
+        )
+
+    def test_embed_field_markdown_link(self):
+        embed = {
+            "title": "Merchant Arrived - MARI Found",
+            "fields": [
+                {
+                    "name": "Server",
+                    "value": "[Join Private Server](https://www.roblox.com/share-links?code=abcdef0123456789abcdef0123456789&type=Server)"
+                }
+            ]
+        }
+        link, combined_text = self.detector.extract_from_message("", [embed])
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_code, "abcdef0123456789abcdef0123456789")
+        self.assertIn("MARI", combined_text)
+
 
 if __name__ == "__main__":
     unittest.main()

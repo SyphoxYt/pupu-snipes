@@ -10,13 +10,13 @@ from .config import DEFAULT_SOLS_RNG_PLACE_ID, SUPPORTED_PLACE_IDS, LEGITIMATE_R
 
 # Precompiled regular expressions for maximum extraction speed
 RE_STANDARD_LINK = re.compile(
-    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/games/(\d+)(?:/[^?\s#<>\)]*)?\?[^#\s<>\)]*?privateServerLinkCode=([a-zA-Z0-9_\-]+)',
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/games/(\d+)(?:/[^?\s#<>\)]*)?\?[^#\s<>\)]*?(?:privateServerLinkCode|linkCode)=([a-zA-Z0-9_\-]+)',
     re.IGNORECASE
 )
 
-# Share links: roblox.com/share?code=XYZ or roblox.com/share-links?code=XYZ
+# Share links: roblox.com/share?code=XYZ or roblox.com/share-links?code=XYZ or roblox.com/share-link?code=XYZ
 RE_SHARE_LINK = re.compile(
-    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/(?:share|share-links)\?[^#\s<>\)]*?code=([a-zA-Z0-9_\-]+)',
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/(?:share|share-links?|experiences/share)[^#\s<>\)]*?[?&]code=([a-zA-Z0-9_\-]+)',
     re.IGNORECASE
 )
 
@@ -139,49 +139,185 @@ class LinkDetector:
                     return True
         return False
 
-    def extract_from_message(self, content: str, embeds: List[Dict[str, Any]]) -> Tuple[Optional[ExtractedLink], str]:
+    def extract_from_message(
+        self,
+        content: str = "",
+        embeds: List[Any] = None,
+        components: List[Any] = None,
+        attachments: List[Any] = None,
+        raw_message: Any = None
+    ) -> Tuple[Optional[ExtractedLink], str]:
         """
-        Extracts link and builds combined search text from message content and all embeds.
+        Extracts link and builds combined search text from message content, all embeds,
+        interactive Button components, and attachments.
+        Prioritizes Discord 'Join Server' button links and Sol's RNG private server links.
         Zero external network requests for sub-millisecond execution.
         """
-        parts = [content or ""]
-        extracted = None
-
+        parts = []
         if content:
-            extracted = self.extract_from_text(content)
+            parts.append(str(content))
 
-        for emb in embeds:
-            title = emb.get("title", "")
-            desc = emb.get("description", "")
-            url = emb.get("url", "")
-            footer = emb.get("footer", {}).get("text", "") if isinstance(emb.get("footer"), dict) else ""
-            
-            if title:
-                parts.append(title)
-            if desc:
-                parts.append(desc)
-            if footer:
-                parts.append(footer)
-            if url:
-                parts.append(url)
+        # Prioritized candidate URLs: tuples of (candidate_string, priority_weight, label)
+        # Priority 1: Component button links (especially 'Join Server', 'Join', 'Play')
+        # Priority 2: Markdown links with join/server labels
+        # Priority 3: Embed fields (values and names)
+        # Priority 4: Embed titles, descriptions, URLs
+        # Priority 5: Raw message content and attachments
+        candidates: List[Tuple[str, int, str]] = []
 
-            for f in emb.get("fields", []):
-                fn = f.get("name", "")
-                fv = f.get("value", "")
-                if fn:
-                    parts.append(fn)
-                if fv:
-                    parts.append(fv)
+        # 1. Extract from Discord Components (Interactive Buttons / ActionRows)
+        if components:
+            for row in components:
+                children = getattr(row, "children", None) or getattr(row, "components", None)
+                if children is None and isinstance(row, dict):
+                    children = row.get("components") or row.get("children") or []
 
-            if not extracted:
-                for text_candidate in (url, desc, title):
-                    if text_candidate:
-                        found = self.extract_from_text(text_candidate)
-                        if found and found.is_valid:
-                            extracted = found
-                            break
+                if children:
+                    for comp in children:
+                        btn_url = getattr(comp, "url", None)
+                        label = getattr(comp, "label", "") or ""
+                        custom_id = getattr(comp, "custom_id", None)
+                        if isinstance(comp, dict):
+                            btn_url = btn_url or comp.get("url")
+                            label = label or comp.get("label", "")
+                            custom_id = custom_id or comp.get("custom_id")
+                        elif hasattr(comp, "to_dict"):
+                            try:
+                                cd = comp.to_dict()
+                                btn_url = btn_url or cd.get("url")
+                                label = label or cd.get("label", "")
+                                custom_id = custom_id or cd.get("custom_id")
+                            except Exception:
+                                pass
+
+                        if label:
+                            parts.append(str(label))
+                        
+                        # Boost buttons labeled 'Join Server', 'Join', 'Play', 'VIP'
+                        lbl_lower = str(label).lower()
+                        prio = 1 if any(k in lbl_lower for k in ("join", "server", "vip", "play", "link")) else 2
+
+                        if btn_url:
+                            candidates.append((str(btn_url), prio, str(label)))
+                        if custom_id and len(str(custom_id)) >= 20 and not str(custom_id).startswith("http"):
+                            candidates.append((str(custom_id), prio, str(label)))
+
+        # 2. Extract from Embeds (Titles, descriptions, author, footer, and fields)
+        if embeds:
+            for emb in embeds:
+                if hasattr(emb, "to_dict"):
+                    emb_dict = emb.to_dict()
+                elif isinstance(emb, dict):
+                    emb_dict = emb
+                else:
+                    emb_dict = {}
+
+                title = emb_dict.get("title", "")
+                desc = emb_dict.get("description", "")
+                e_url = emb_dict.get("url", "")
+                author = emb_dict.get("author", {})
+                footer = emb_dict.get("footer", {})
+                fields = emb_dict.get("fields", [])
+
+                if title:
+                    parts.append(title)
+                    candidates.append((title, 4, "title"))
+                if desc:
+                    parts.append(desc)
+                    candidates.append((desc, 3, "description"))
+                if e_url:
+                    candidates.append((e_url, 3, "embed_url"))
+                if isinstance(author, dict):
+                    if author.get("name"):
+                        parts.append(author["name"])
+                    if author.get("url"):
+                        candidates.append((author["url"], 4, "author_url"))
+                if isinstance(footer, dict) and footer.get("text"):
+                    parts.append(footer["text"])
+
+                for f in fields:
+                    fn = f.get("name", "")
+                    fv = f.get("value", "")
+                    if fn:
+                        parts.append(fn)
+                        candidates.append((fn, 4, "field_name"))
+                    if fv:
+                        parts.append(fv)
+                        # Check for markdown links in field value: [Label](URL)
+                        md_links = re.findall(r'\[([^\]]*)\]\((https?://[^\s)]+|roblox://[^\s)]+)\)', fv)
+                        for md_lbl, md_u in md_links:
+                            lbl_low = md_lbl.lower()
+                            prio = 2 if any(k in lbl_low for k in ("join", "server", "vip", "play", "link")) else 3
+                            candidates.append((md_u, prio, md_lbl))
+                        candidates.append((fv, 3, "field_value"))
+
+        # 3. Extract from Content
+        if content:
+            # Markdown links in content
+            md_links = re.findall(r'\[([^\]]*)\]\((https?://[^\s)]+|roblox://[^\s)]+)\)', content)
+            for md_lbl, md_u in md_links:
+                lbl_low = md_lbl.lower()
+                prio = 2 if any(k in lbl_low for k in ("join", "server", "vip", "play", "link")) else 3
+                candidates.append((md_u, prio, md_lbl))
+            candidates.append((content, 4, "content"))
+
+        # 4. Extract from Attachments
+        if attachments:
+            for att in attachments:
+                a_url = getattr(att, "url", None) or (att.get("url") if isinstance(att, dict) else None)
+                if a_url:
+                    candidates.append((str(a_url), 5, "attachment"))
 
         combined_text = " ".join(parts)
+
+        # Look for explicit Place ID in the message text (e.g. "Place ID 15532962292")
+        detected_place_id = None
+        pid_match = re.search(r'Place\s*ID\s*[:=]?\s*(\d{8,12})', combined_text, re.IGNORECASE)
+        if pid_match:
+            pid_candidate = pid_match.group(1)
+            if pid_candidate in SUPPORTED_PLACE_IDS:
+                detected_place_id = pid_candidate
+
+        # Sort candidates by priority ascending (1 = highest priority)
+        candidates.sort(key=lambda x: x[1])
+
+        extracted = None
+        for cand_str, prio, label in candidates:
+            if not cand_str:
+                continue
+
+            # Check raw URL or text
+            found = self.extract_from_text(cand_str)
+            if found and found.is_valid and not found.is_phishing:
+                # Discard non-game links (e.g. discord.com links, roblox user profile links)
+                if found.link_type in ("share", "protocol", "standard", "deeplink", "ropro", "joinrbx", "roseal", "fishstrap"):
+                    extracted = found
+                    break
+
+            # If cand_str has URL-encoded query params (e.g. af_dp=roblox%3A%2F%2F... or deep_link_value=...)
+            if "%2f" in cand_str.lower() or "%3a" in cand_str.lower() or "af_dp=" in cand_str or "deep_link_value=" in cand_str:
+                try:
+                    unquoted = urllib.parse.unquote(cand_str)
+                    found_unq = self.extract_from_text(unquoted)
+                    if found_unq and found_unq.is_valid and not found_unq.is_phishing:
+                        if found_unq.link_type in ("share", "protocol", "standard", "deeplink", "ropro", "joinrbx", "roseal", "fishstrap"):
+                            extracted = found_unq
+                            break
+                except Exception:
+                    pass
+
+        # Fallback: scan combined_text
+        if not extracted and combined_text:
+            found_fallback = self.extract_from_text(combined_text)
+            if found_fallback and found_fallback.is_valid and not found_fallback.is_phishing:
+                extracted = found_fallback
+
+        # If a specific place ID was found in the embed text, attach it
+        if extracted and detected_place_id:
+            extracted.place_id = detected_place_id
+            if extracted.protocol_url.startswith("roblox://placeId="):
+                extracted.protocol_url = f"roblox://placeId={detected_place_id}&linkCode={extracted.link_code}"
+
         return extracted, combined_text
 
     def extract_from_text(self, text: str) -> Optional[ExtractedLink]:
@@ -191,6 +327,27 @@ class LinkDetector:
         """
         if not text:
             return None
+
+        # If text contains encoded deep links, check decoded version as well
+        if "roblox%3a" in text.lower() or "af_dp=" in text.lower() or "deep_link_value=" in text.lower():
+            try:
+                decoded_text = urllib.parse.unquote(text)
+                if "%2f" in decoded_text.lower():
+                    decoded_text = urllib.parse.unquote(decoded_text)
+                proto_share_match = RE_SHARE_PROTOCOL.search(decoded_text)
+                if proto_share_match:
+                    link_code = proto_share_match.group(1)
+                    proto_url = f"roblox://navigation/share_links?code={link_code}&type=Server"
+                    return ExtractedLink(
+                        raw_url=text,
+                        place_id=self.target_place_id,
+                        link_code=link_code,
+                        protocol_url=proto_url,
+                        is_valid=True,
+                        link_type="share"
+                    )
+            except Exception:
+                pass
 
         clean_text = text.replace("<", " ").replace(">", " ").replace(")", " ")
 

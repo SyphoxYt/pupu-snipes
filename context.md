@@ -102,6 +102,14 @@ pupusnipes/
 - Extended post-join cooldown from 5 minutes (300s) to **10 minutes (600s)** across launcher, monitor, UI timers, and hotkey (`F9`).
 - Created `.gitignore`, `publish_to_github.py`, and `publish_to_github.bat` targeting `https://github.com/SyphoxYt/pupu-snipes`.
 
+### Phase 7: Discord Component Buttons & Tracking Share Links Detection
+- **Interactive Component Button Support**: Many modern forwarding bots (e.g., Shay's Glitch Hunt Bot) do not put private server links in raw message text or embed descriptions. Instead, they embed the link inside a Discord Component Button (`ActionRow -> Button` with `label="Join Server"`). `detector.extract_from_message()` now extracts URLs directly from `components` and prioritizes buttons labeled with "Join", "Server", "Play", or "VIP".
+- **Deep Tracking Share Links**: Supported complex tracking/deep link formats (e.g. `roblox.com/share-links?code=...&deep_link_value=roblox%3A%2F%2Fnavigation%2Fshare_links%3Fcode%3D...&pid=Server`). Added URL-decoding in `extract_from_text()` to extract the nested `roblox://` protocol share link directly.
+- **Multi-URL Disambiguation & Priority Filtering**: Messages often contain Discord jump links (`discord.com/channels/...`), bot developer links, and Roblox user profiles (`roblox.com/users/...`). The detector now sorts candidates by priority weight (Buttons > Join markdown links > Embed fields > Embed descriptions/titles > Content), explicitly filtering out user profiles, inventory links, and non-game URLs.
+- **Embed Field & Sub-Place ID Parsing**: Extracted masked markdown links (`[Label](URL)`) from embed `field.value` and `field.name`, while automatically parsing `Place ID: 15532962292` from text and binding it to the extracted link.
+- **Message Edit Gateway Listeners**: Added `@client.event async def on_message_edit` and `on_raw_message_edit` to `DiscordMonitor` to catch bots that initially send a plain notification and then edit it moments later to attach the embed and component buttons.
+- **Expanded Test Suite**: Added 5 new unit tests in `tests/test_detector.py` covering component buttons, tracking links, embed markdown links, and sub-place ID bindings. Total passing tests increased to 33.
+
 ---
 
 ## 🐛 4. Everything That Didn't Work (Bugs Encountered) & How They Were Fixed
@@ -180,6 +188,19 @@ pupusnipes/
   - Replaced fixed dimensions with minimum dimensions (`setMinimumWidth`, `setMinimumHeight`).
   - Wrapped every tab in a `QScrollArea` with `setWidgetResizable(True)`.
   - Enabled Windows Per-Monitor v2 DPI awareness (`SetProcessDpiAwareness(2)`).
+
+### 10. Forwarding Bots Not Detected (Discord Component Buttons)
+- **Symptom**: In channels like Shay's Glitch Hunt Bot with `@Mari` or `CYBERSPACE`, PupuSnipe completely ignored the message and did not detect or join the server.
+- **Root Cause**: Modern Discord bots embed the private server link inside an interactive **ActionRow Button** (`[Join Server ↗]`) instead of raw message `content` or embed `description`. `discord_monitor.py` was only passing `message.content` and `message.embeds` to `extract_from_message()`, completely omitting `message.components`.
+- **Solution**:
+  1. Updated `extract_from_message()` to accept `components`, recursing into rows to extract button URLs and labels.
+  2. Implemented priority ranking giving maximum weight to buttons labeled with `Join`, `Server`, `Play`, or `VIP`.
+  3. Added `on_message_edit` and `on_raw_message_edit` events to capture messages where the bot asynchronously updates the message with buttons after sending.
+
+### 11. AppsFlyer / Encoded Deep Link Share URLs Unparsed
+- **Symptom**: Share links generated with marketing/tracking redirects (e.g., `roblox.com/share-links?code=...&deep_link_value=roblox%3A%2F%2Fnavigation%2Fshare_links%3Fcode%3D...`) failed extraction or opened browser redirect loops.
+- **Root Cause**: Query string parameters contained percent-encoded protocol links (`roblox%3A%2F%2F`) and variable query ordering.
+- **Solution**: Added multi-pass URL decoding in `extract_from_text()` to extract the direct protocol link `roblox://navigation/share_links?code=<CODE>&type=Server` with zero network overhead.
 
 ---
 

@@ -195,6 +195,50 @@ class DiscordMonitor:
             # Ultra-low latency synchronous execution
             self._process_message_instant(message, t_recv)
 
+        @self._client.event
+        async def on_message_edit(before: discord.Message, after: discord.Message):
+            if not self.is_running:
+                return
+
+            ch_id_str = str(after.channel.id)
+            if self.monitored_channel_ids and ch_id_str not in self.monitored_channel_ids:
+                return
+
+            if after.author == self._client.user:
+                return
+
+            t_recv = time.time()
+            if self.on_message_scanned:
+                self.on_message_scanned()
+
+            if self.is_paused:
+                return
+
+            # Process updated embed or button components
+            self._process_message_instant(after, t_recv)
+
+        @self._client.event
+        async def on_raw_message_edit(payload: discord.RawMessageUpdateEvent):
+            if not self.is_running or self.is_paused:
+                return
+
+            ch_id_str = str(payload.channel_id)
+            if self.monitored_channel_ids and ch_id_str not in self.monitored_channel_ids:
+                return
+
+            # If cached message was already dispatched in on_message_edit, skip redundant call
+            if getattr(payload, "cached_message", None):
+                return
+
+            try:
+                channel = self._client.get_channel(payload.channel_id)
+                if channel:
+                    msg = await channel.fetch_message(payload.message_id)
+                    if msg and msg.author != self._client.user:
+                        self._process_message_instant(msg, time.time())
+            except Exception:
+                pass
+
         try:
             self._loop.run_until_complete(self._client.start(token.strip()))
         except Exception as ex:
@@ -221,9 +265,17 @@ class DiscordMonitor:
           - Launch initiation
           - Actual measured detection-to-launch time
         """
-        # Step 1: URL Extraction
+        # Step 1: URL Extraction (from Content, Embeds, Fields, and Component Buttons)
         embeds_data = [e.to_dict() for e in message.embeds] if message.embeds else []
-        extracted_link, combined_text = self.detector.extract_from_message(message.content, embeds_data)
+        components_data = getattr(message, "components", [])
+        attachments_data = getattr(message, "attachments", [])
+        extracted_link, combined_text = self.detector.extract_from_message(
+            content=message.content,
+            embeds=embeds_data,
+            components=components_data,
+            attachments=attachments_data,
+            raw_message=message
+        )
         t_extracted = time.time()
         extract_latency_ms = (t_extracted - t_recv) * 1000.0
 
