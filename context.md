@@ -51,7 +51,7 @@ pupusnipes/
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
 │   ├── assets/               # Application icon (.ico) and gaming logo (.png)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 43 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 44 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -169,6 +169,21 @@ To guarantee you join private servers **before other players and public bots**, 
 - **Expanded Test Suite**:
   - Created `tests/test_channels.py` testing 9-channel URL parsing, thread parent filtering, and guild filtering. Total test suite expanded to 43 passing tests.
 
+### Phase 10: Live Discord Server & Channel Metadata Resolution
+- **Dynamic Gateway & Message Discovery**:
+  - Previously, when channel IDs were entered in the Sniper tab or imported via presets, the SQLite `channels` table stored hardcoded placeholders: `Sniper Channel`, Server ID `0`, and generic `channel-XXXX`. The "Servers" tab displayed only these placeholders despite the sniper log showing:
+    `[Discord] Live channel stream active for #🌸dreamspace in 'xe33Hunt'`.
+  - Upgraded `DiscordMonitor`:
+    - When subscribing to channels during gateway connection (`_subscribe_monitored_channels`), it inspects the live `channel` and `guild` Discord objects, extracting real names (`guild.name`, `guild.id`, `channel.name`).
+    - Dispatches metadata updates directly to SQLite (`storage.update_channel_metadata`) and fires a live callback `on_channel_resolved(cid, sid, sname, cname)`.
+    - Also records metadata whenever an incoming message is scanned in `_process_message_instant()`.
+  - Upgraded `MainWindow` & `ServersTab`:
+    - Added Qt signal `sig_channel_resolved` connecting `DiscordMonitor` to `tab_servers.load_channels()`.
+    - Added **🔄 Refresh Server Info** button (`btn_refresh`) allowing instant on-demand name resolution directly from active Discord client cache.
+    - Preserved resolved metadata in `storage.set_channel_ids()`: whenever channels are saved, existing resolved server names and channel titles are retained rather than reset to defaults.
+    - Styled table items with cyberpunk neon accents: Server Name in bold emerald green (`#00ff88`), Channel Name with `#` prefix in bold neon cyan (`#00f0ff`), Server ID in sleek muted gray (`#94a3b8`), and Channel ID in readable slate (`#cbd5e1`).
+  - Added unit test `test_metadata_update_and_preservation` in `tests/test_channels.py` ensuring persistence across saves. Total test suite increased to **44 tests**.
+
 ---
 
 ## 🐛 4. Everything That Didn't Work (Bugs Encountered) & How They Were Fixed
@@ -276,6 +291,17 @@ To guarantee you join private servers **before other players and public bots**, 
   1. Implemented automatic Gateway channel subscription in `DiscordMonitor`: calls `subs.subscribe_to(guild)` and `subs.subscribe_to_channels(guild, {cid: [(0, 99)]})` for all monitored channels upon connection and channel save.
   2. Overhauled `get_channel_ids()` to specifically extract the channel ID segment from Discord URLs while ignoring the guild ID prefix.
   3. Added `_is_channel_monitored()` to evaluate both `message.channel.id` and thread `parent_id`.
+
+### 14. Placeholder Text in Servers Tab (`Sniper Channel`, `0`, `channel-XXXX`)
+- **Symptom**: While the Discord log in terminal correctly identified channels (e.g. `Live channel stream active for #🌸dreamspace in 'xe33Hunt'`), the "Servers" tab in the UI showed placeholder values (`Sniper Channel`, `0`, `channel-8531`). Saving channels also continually wiped out any resolved names.
+- **Root Cause**:
+  1. `storage.set_channel_ids()` executed `DELETE FROM channels` and unconditionally re-inserted placeholder metadata (`"0"`, `"Discord Server"`, `f"channel-{cid[-4:]}"`).
+  2. `DiscordMonitor` logged the resolved guild name and channel name to terminal when subscribing or receiving messages, but never wrote this back to the SQLite database or signaled `ServersTab`.
+- **Solution**:
+  1. Added `storage.update_channel_metadata(channel_id, server_id, server_name, channel_name)` to insert/update real Discord titles without touching channel settings.
+  2. Updated `storage.set_channel_ids()` to query existing metadata before wiping, preserving previously resolved server names and channel titles.
+  3. Added `on_channel_resolved` callback in `DiscordMonitor` wired to `MainWindow.sig_channel_resolved`, which automatically updates the table in `ServersTab` in real-time.
+  4. Added a manual **🔄 Refresh Server Info** button and live client resolution in `ServersTab.load_channels()`.
 
 ---
 

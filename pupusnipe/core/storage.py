@@ -250,14 +250,48 @@ class StorageManager:
     def set_channel_ids(self, channel_ids: List[str]):
         conn = self._get_connection()
         try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT channel_id, server_id, server_name, channel_name, enabled FROM channels")
+            existing = {str(r["channel_id"]).strip(): dict(r) for r in cursor.fetchall()}
+
             conn.execute("DELETE FROM channels")
             for cid in channel_ids:
                 clean_cid = str(cid).strip()
                 if clean_cid:
+                    ex = existing.get(clean_cid)
+                    if ex and ex.get("server_name") and ex["server_name"] not in ("0", "Sniper Channel", ""):
+                        s_id = str(ex.get("server_id", "0"))
+                        s_name = str(ex.get("server_name", "Discord Server"))
+                        c_name = str(ex.get("channel_name", f"channel-{clean_cid[-4:]}"))
+                        enabled = int(ex.get("enabled", 1))
+                    else:
+                        s_id = "0"
+                        s_name = "Discord Server"
+                        c_name = f"channel-{clean_cid[-4:]}"
+                        enabled = 1
                     conn.execute(
                         "INSERT OR REPLACE INTO channels (server_id, server_name, channel_id, channel_name, enabled) VALUES (?, ?, ?, ?, ?)",
-                        ("0", "Sniper Channel", clean_cid, f"channel-{clean_cid[-4:]}", 1)
+                        (s_id, s_name, clean_cid, c_name, enabled)
                     )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def update_channel_metadata(self, channel_id: str, server_id: str, server_name: str, channel_name: str):
+        """Updates the resolved server name, server ID, and channel name for a monitored channel."""
+        clean_cid = str(channel_id).strip()
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE channels SET server_id = ?, server_name = ?, channel_name = ? WHERE channel_id = ?",
+                (str(server_id).strip(), str(server_name).strip(), str(channel_name).strip(), clean_cid)
+            )
+            if cursor.rowcount == 0:
+                conn.execute(
+                    "INSERT OR REPLACE INTO channels (server_id, server_name, channel_id, channel_name, enabled) VALUES (?, ?, ?, ?, ?)",
+                    (str(server_id).strip(), str(server_name).strip(), clean_cid, str(channel_name).strip(), 1)
+                )
             conn.commit()
         finally:
             conn.close()

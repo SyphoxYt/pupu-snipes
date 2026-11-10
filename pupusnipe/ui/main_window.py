@@ -48,6 +48,7 @@ class MainWindow(QtWidgets.QMainWindow):
     sig_hotkey_stop = QtCore.Signal()
     sig_hotkey_fish = QtCore.Signal()
     sig_hotkey_reset_cd = QtCore.Signal()
+    sig_channel_resolved = QtCore.Signal(str, str, str, str)
 
     def __init__(self):
         super().__init__()
@@ -86,7 +87,8 @@ class MainWindow(QtWidgets.QMainWindow):
             launcher=self.launcher,
             on_status_change=lambda st, txt: self.sig_status_update.emit(st, txt),
             on_snipe_event=lambda ev: self.sig_snipe_event.emit(ev),
-            on_message_scanned=lambda: self.sig_message_scanned.emit()
+            on_message_scanned=lambda: self.sig_message_scanned.emit(),
+            on_channel_resolved=lambda cid, sid, sname, cname: self.sig_channel_resolved.emit(cid, sid, sname, cname)
         )
 
         # Bloxstrap & Roblox Log Watcher
@@ -123,6 +125,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sig_fishing_stats.connect(self._on_fishing_stats)
         self.sig_biome_detected.connect(self._on_biome_changed)
         self.sig_aura_detected.connect(self._on_aura_changed)
+        self.sig_channel_resolved.connect(self._on_channel_resolved)
 
         # Connect logger to UI
         setup_logger(on_log_callback=lambda line: self.sig_log_received.emit(line))
@@ -713,6 +716,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.monitor.set_monitored_channels(channel_ids)
         self.tab_servers.load_channels()
         logger.info(f"Updated monitored channels: {len(channel_ids)} specific channel(s).")
+
+    def _on_channel_resolved(self, cid: str, s_id: str, s_name: str, c_name: str):
+        if hasattr(self, "tab_servers"):
+            self.tab_servers.load_channels()
 
     def _load_persisted_settings(self):
         """Loads all persisted settings from SQLite storage into memory configuration."""

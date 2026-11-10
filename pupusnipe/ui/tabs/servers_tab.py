@@ -112,12 +112,19 @@ class ServersTab(QtWidgets.QWidget):
         self.btn_add.setMinimumHeight(38)
         self.btn_add.clicked.connect(self._show_add_dialog)
 
+        self.btn_refresh = QtWidgets.QPushButton("🔄 Refresh Server Info")
+        self.btn_refresh.setProperty("class", "btn-secondary")
+        self.btn_refresh.setMinimumHeight(38)
+        self.btn_refresh.setToolTip("Reloads and updates live server names and channel titles")
+        self.btn_refresh.clicked.connect(self.load_channels)
+
         self.btn_remove = QtWidgets.QPushButton("Remove Selected")
         self.btn_remove.setProperty("class", "btn-danger")
         self.btn_remove.setMinimumHeight(38)
         self.btn_remove.clicked.connect(self._remove_selected)
 
         header_layout.addWidget(self.btn_add)
+        header_layout.addWidget(self.btn_refresh)
         header_layout.addWidget(self.btn_remove)
         main_layout.addLayout(header_layout)
 
@@ -165,6 +172,32 @@ class ServersTab(QtWidgets.QWidget):
 
     def load_channels(self):
         channels = self.storage.get_channels()
+
+        # Check if monitor client is connected and can resolve names immediately
+        client = None
+        if hasattr(self, "_main_window") and hasattr(self._main_window, "monitor"):
+            client = getattr(self._main_window.monitor, "_client", None)
+        elif self.parent() and hasattr(self.parent(), "monitor"):
+            client = getattr(self.parent().monitor, "_client", None)
+
+        if client and getattr(client, "is_ready", lambda: False)():
+            for ch in channels:
+                cid = ch["channel_id"]
+                s_name = ch.get("server_name", "")
+                if not s_name or s_name in ("0", "Sniper Channel", "Discord Server"):
+                    try:
+                        ch_obj = client.get_channel(int(cid))
+                        if ch_obj and hasattr(ch_obj, "guild") and ch_obj.guild:
+                            new_sname = str(ch_obj.guild.name)
+                            new_sid = str(ch_obj.guild.id)
+                            new_cname = f"#{ch_obj.name}" if hasattr(ch_obj, "name") else f"channel-{cid[-4:]}"
+                            self.storage.update_channel_metadata(cid, new_sid, new_sname, new_cname)
+                            ch["server_name"] = new_sname
+                            ch["server_id"] = new_sid
+                            ch["channel_name"] = new_cname
+                    except Exception:
+                        pass
+
         self.table.setRowCount(0)
         for ch in channels:
             row = self.table.rowCount()
@@ -180,11 +213,45 @@ class ServersTab(QtWidgets.QWidget):
             chk.toggled.connect(lambda state, c=cid: self._toggle_channel(c, state))
             chk_layout.addWidget(chk)
 
+            # Server Name formatting
+            s_name = ch.get("server_name", "")
+            is_resolved = bool(s_name and s_name not in ("0", "Sniper Channel", "Discord Server"))
+            display_sname = s_name if is_resolved else "Resolving Server..."
+            item_sname = QtWidgets.QTableWidgetItem(display_sname)
+            item_sname.setForeground(QtGui.QBrush(QtGui.QColor("#00ff88" if is_resolved else "#fbbf24")))
+            font_s = item_sname.font()
+            font_s.setBold(True)
+            item_sname.setFont(font_s)
+
+            # Server ID formatting
+            s_id = ch.get("server_id", "")
+            display_sid = s_id if (s_id and s_id != "0") else "—"
+            item_sid = QtWidgets.QTableWidgetItem(display_sid)
+            item_sid.setForeground(QtGui.QBrush(QtGui.QColor("#94a3b8")))
+
+            # Channel Name formatting
+            c_name = ch.get("channel_name", "")
+            if not c_name or c_name.startswith("channel-"):
+                display_cname = f"#{c_name}" if not c_name.startswith("#") else c_name
+            elif not c_name.startswith("#"):
+                display_cname = f"#{c_name}"
+            else:
+                display_cname = c_name
+            item_cname = QtWidgets.QTableWidgetItem(display_cname)
+            item_cname.setForeground(QtGui.QBrush(QtGui.QColor("#00f0ff")))
+            font_c = item_cname.font()
+            font_c.setBold(True)
+            item_cname.setFont(font_c)
+
+            # Channel ID formatting
+            item_cid = QtWidgets.QTableWidgetItem(cid)
+            item_cid.setForeground(QtGui.QBrush(QtGui.QColor("#cbd5e1")))
+
             self.table.setCellWidget(row, 0, chk_widget)
-            self.table.setItem(row, 1, QtWidgets.QTableWidgetItem(ch.get("server_name", "")))
-            self.table.setItem(row, 2, QtWidgets.QTableWidgetItem(ch.get("server_id", "")))
-            self.table.setItem(row, 3, QtWidgets.QTableWidgetItem(ch.get("channel_name", "")))
-            self.table.setItem(row, 4, QtWidgets.QTableWidgetItem(ch.get("channel_id", "")))
+            self.table.setItem(row, 1, item_sname)
+            self.table.setItem(row, 2, item_sid)
+            self.table.setItem(row, 3, item_cname)
+            self.table.setItem(row, 4, item_cid)
 
         enabled_ids = [ch["channel_id"] for ch in channels if ch["enabled"]]
         self.sig_channels_updated.emit(enabled_ids)

@@ -43,7 +43,8 @@ class DiscordMonitor:
         launcher: RobloxLauncher,
         on_status_change: Optional[Callable[[str, str], None]] = None,
         on_snipe_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-        on_message_scanned: Optional[Callable[[], None]] = None
+        on_message_scanned: Optional[Callable[[], None]] = None,
+        on_channel_resolved: Optional[Callable[[str, str, str, str], None]] = None
     ):
         self.config = config
         self.storage = storage
@@ -55,6 +56,7 @@ class DiscordMonitor:
         self.on_status_change = on_status_change
         self.on_snipe_event = on_snipe_event
         self.on_message_scanned = on_message_scanned
+        self.on_channel_resolved = on_channel_resolved
 
         # State
         self.is_running = False
@@ -135,7 +137,21 @@ class DiscordMonitor:
                             pass
                         await subs.subscribe_to_channels(guild, {cid: [(0, 99)]})
                         subscribed_count += 1
-                        logger.info(f"[Discord] Live channel stream active for #{getattr(ch, 'name', cid_str)} in '{guild.name}'")
+                        s_name = str(guild.name)
+                        s_id = str(guild.id)
+                        c_name = f"#{ch.name}" if hasattr(ch, "name") else f"channel-{cid_str[-4:]}"
+                        try:
+                            self.storage.update_channel_metadata(
+                                channel_id=cid_str,
+                                server_id=s_id,
+                                server_name=s_name,
+                                channel_name=c_name
+                            )
+                        except Exception:
+                            pass
+                        if self.on_channel_resolved:
+                            self.on_channel_resolved(cid_str, s_id, s_name, c_name)
+                        logger.info(f"[Discord] Live channel stream active for {c_name} in '{s_name}'")
                 except Exception as ex:
                     logger.debug(f"[Discord] Subscribed channel ping: {ex}")
             if subscribed_count > 0:
@@ -346,6 +362,20 @@ class DiscordMonitor:
           - Launch initiation
           - Actual measured detection-to-launch time
         """
+        # Dynamically record resolved channel and server metadata for the Servers tab
+        if message.channel and hasattr(message.channel, "id"):
+            cid_str = str(message.channel.id)
+            if cid_str in self.monitored_channel_ids:
+                s_name = str(message.guild.name) if message.guild else "Direct"
+                s_id = str(message.guild.id) if message.guild else "0"
+                c_name = f"#{message.channel.name}" if hasattr(message.channel, "name") else f"channel-{cid_str[-4:]}"
+                try:
+                    self.storage.update_channel_metadata(cid_str, s_id, s_name, c_name)
+                    if self.on_channel_resolved:
+                        self.on_channel_resolved(cid_str, s_id, s_name, c_name)
+                except Exception:
+                    pass
+
         # Step 1: URL Extraction (from Content, Embeds, Fields, and Component Buttons)
         embeds_data = [e.to_dict() for e in message.embeds] if message.embeds else []
         components_data = getattr(message, "components", [])

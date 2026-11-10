@@ -2,6 +2,8 @@
 Unit tests for multi-channel parsing and Discord gateway channel filtering.
 """
 import unittest
+import os
+import tempfile
 from pupusnipe.core.discord_monitor import DiscordMonitor
 from pupusnipe.core.config import AppConfig
 from pupusnipe.core.storage import StorageManager
@@ -27,8 +29,10 @@ class MockGuild:
 
 class TestChannelFiltering(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.temp_dir.name, "test_channels.db")
         self.config = AppConfig()
-        self.storage = StorageManager()
+        self.storage = StorageManager(db_path=self.db_path)
         self.detector = LinkDetector()
         self.matcher = KeywordMatcher()
         self.launcher = RobloxLauncher()
@@ -39,6 +43,9 @@ class TestChannelFiltering(unittest.TestCase):
             matcher=self.matcher,
             launcher=self.launcher
         )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
 
     def test_channel_filtering_empty_allows_all(self):
         self.monitor.set_monitored_channels([])
@@ -87,6 +94,31 @@ https://discord.com/channels/1271189424750989343/1444176397286510852
         self.assertIn("1111111111111111111", parsed)
         # Guild ID must not be extracted as a channel ID
         self.assertNotIn("1271189424750989343", parsed)
+
+    def test_metadata_update_and_preservation(self):
+        # Initial set of channels
+        self.storage.set_channel_ids(["1396152378495078531", "1445417690201325741"])
+        channels = {c["channel_id"]: c for c in self.storage.get_channels()}
+        self.assertEqual(channels["1396152378495078531"]["server_name"], "Discord Server")
+
+        # Live metadata resolution
+        self.storage.update_channel_metadata(
+            channel_id="1396152378495078531",
+            server_id="123456789",
+            server_name="xe33Hunt",
+            channel_name="#🌸dreamspace"
+        )
+        channels = {c["channel_id"]: c for c in self.storage.get_channels()}
+        self.assertEqual(channels["1396152378495078531"]["server_name"], "xe33Hunt")
+        self.assertEqual(channels["1396152378495078531"]["channel_name"], "#🌸dreamspace")
+        self.assertEqual(channels["1396152378495078531"]["server_id"], "123456789")
+
+        # When set_channel_ids is called again with the same channel, preserved metadata is retained
+        self.storage.set_channel_ids(["1396152378495078531", "999999999999999999"])
+        channels = {c["channel_id"]: c for c in self.storage.get_channels()}
+        self.assertEqual(channels["1396152378495078531"]["server_name"], "xe33Hunt")
+        self.assertEqual(channels["1396152378495078531"]["channel_name"], "#🌸dreamspace")
+        self.assertEqual(channels["999999999999999999"]["server_name"], "Discord Server")
 
 
 if __name__ == "__main__":
