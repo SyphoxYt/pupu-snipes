@@ -126,6 +126,19 @@ pupusnipes/
   - Verified that raw standard links, raw share links, raw `roblox://` protocol URLs, raw links with surrounding chat text, and raw third-party service links continue to work with 100% accuracy.
   - Added 5 new detector tests and expanded storage tests; test suite now passes 38 unit tests in 0.88s.
 
+### Phase 9: Multi-Channel Gateway Subscriptions & Discord Client Independence
+- **Active Channel Subscriptions (`op: 14` `subscribe_to_channels`)**:
+  - In Discord's user gateway, servers with $>75,000$ members or muted channels do NOT stream `MESSAGE_CREATE` events to connected user tokens unless the client actively subscribes to the channel range (`[0, 99]`), simulating opening the channel in the Discord desktop app.
+  - Implemented `_subscribe_monitored_channels()` in `DiscordMonitor`: automatically loops through all monitored channels and user guilds upon `on_ready` or channel update, sending Gateway subscription packets for each channel.
+  - This eliminates the requirement for having Discord running in the background—PupuSnipe receives all messages directly via WebSocket independently.
+- **Smart Channel URL vs Snowflake Parsing**:
+  - Discord channel URLs are formatted as `https://discord.com/channels/<GUILD_ID>/<CHANNEL_ID>`. Previous regex captured both numbers, polluting the list with server IDs.
+  - Updated `get_channel_ids()` to specifically extract the channel ID segment from URLs, while supporting mentions (`<#... >`), newlines, commas, and plain IDs.
+- **Parent Thread & Forum Channel Matching**:
+  - Bot notifications frequently post inside active threads or forum posts. Added `_is_channel_monitored` which checks direct channel IDs, thread `parent_id`s, and server IDs so sub-threads are never dropped.
+- **Expanded Test Suite**:
+  - Created `tests/test_channels.py` testing 9-channel URL parsing, thread parent filtering, and guild filtering. Total test suite expanded to 43 passing tests.
+
 ---
 
 ## 🐛 4. Everything That Didn't Work (Bugs Encountered) & How They Were Fixed
@@ -222,6 +235,17 @@ pupusnipes/
 - **Symptom**: Application launch threw `NameError: name 'DEFAULT_SOLS_RNG_PLACE_ID' is not defined` in `main_window.py:63`.
 - **Root Cause**: In `pupusnipe/ui/main_window.py`, `from ..core.config import APP_NAME, APP_VERSION, AppConfig` omitted `DEFAULT_SOLS_RNG_PLACE_ID`.
 - **Solution**: Added `DEFAULT_SOLS_RNG_PLACE_ID` to imports from `..core.config` in `main_window.py`. Verified via standalone headless test and test suite.
+
+### 13. Multi-Channel Event Starvation & Discord Client Inactivity
+- **Symptom**: When entering many channels (e.g., 9 channels across different servers), incoming messages were completely dropped and never detected, especially when the Discord desktop app was not actively open to those channels.
+- **Root Cause**: 
+  1. Discord Gateway does not dispatch `MESSAGE_CREATE` events for servers with $\ge 75,000$ members or muted channels unless the client sends `op: 14` (`subscribe_to_channels`) indicating the channel is actively open.
+  2. Pasting Discord URLs (`discord.com/channels/<guild>/<channel>`) extracted both the guild ID and channel ID, diluting the channel list.
+  3. Messages sent in active Threads or Forum posts have a unique thread `channel.id` distinct from the monitored parent channel ID.
+- **Solution**:
+  1. Implemented automatic Gateway channel subscription in `DiscordMonitor`: calls `subs.subscribe_to(guild)` and `subs.subscribe_to_channels(guild, {cid: [(0, 99)]})` for all monitored channels upon connection and channel save.
+  2. Overhauled `get_channel_ids()` to specifically extract the channel ID segment from Discord URLs while ignoring the guild ID prefix.
+  3. Added `_is_channel_monitored()` to evaluate both `message.channel.id` and thread `parent_id`.
 
 ---
 

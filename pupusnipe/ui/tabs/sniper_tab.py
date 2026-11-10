@@ -536,18 +536,34 @@ class SniperTab(QtWidgets.QWidget):
 
     def get_channel_ids(self) -> list:
         raw = self.edit_channels.toPlainText()
-        # Extract Discord snowflake IDs (10 to 22 digits) handling mentions, URLs, spaces, and commas
-        found = re.findall(r"\b\d{10,22}\b", raw)
-        if not found:
-            found = re.findall(r"\d{10,22}", raw)
-        if not found:
-            found = [c.strip() for c in re.split(r"[\s,;]+", raw) if c.strip().isdigit()]
+        if not raw.strip():
+            return []
+
         seen = set()
         cids = []
-        for cid in found:
+
+        # 1. Parse Discord Channel URLs: https://discord.com/channels/<guild_id>/<channel_id>(/<message_id>)?
+        # The channel ID is specifically the 2nd number segment after /channels/
+        for cid in re.findall(r"discord(?:app)?\.com/channels/(?:\d+|@me)/(\d{10,22})", raw, re.IGNORECASE):
             if cid not in seen:
                 seen.add(cid)
                 cids.append(cid)
+
+        # 2. Parse Channel Mentions: <#123456789012345678>
+        for cid in re.findall(r"<#(\d{10,22})>", raw):
+            if cid not in seen:
+                seen.add(cid)
+                cids.append(cid)
+
+        # 3. For any lines that are NOT full Discord channel URLs, extract raw snowflake IDs
+        for line in raw.splitlines():
+            line_str = line.strip()
+            if "discord.com/channels/" not in line_str and "discordapp.com/channels/" not in line_str:
+                for cid in re.findall(r"\b\d{10,22}\b", line_str):
+                    if cid not in seen:
+                        seen.add(cid)
+                        cids.append(cid)
+
         return cids
 
     def _on_channels_text_changed(self):

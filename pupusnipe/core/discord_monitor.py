@@ -69,6 +69,77 @@ class DiscordMonitor:
     def set_monitored_channels(self, channel_ids: List[str]):
         """Updates the set of monitored channel IDs dynamically without restarting."""
         self.monitored_channel_ids = {str(cid).strip() for cid in channel_ids if str(cid).strip()}
+        if self._client and self._loop and self._loop.is_running():
+            asyncio.run_coroutine_threadsafe(self._subscribe_monitored_channels(), self._loop)
+
+    def _is_channel_monitored(self, channel_id: int, channel_obj: Optional[Any] = None, guild_obj: Optional[Any] = None) -> bool:
+        """
+        Determines if an incoming event channel is allowed.
+        Supports direct channel IDs, thread parent channel IDs, and guild/server IDs.
+        """
+        if not self.monitored_channel_ids:
+            return True  # No channel restrictions: monitor all visible channels
+
+        cid_str = str(channel_id)
+        if cid_str in self.monitored_channel_ids:
+            return True
+
+        if channel_obj:
+            parent_id = getattr(channel_obj, "parent_id", None)
+            if parent_id and str(parent_id) in self.monitored_channel_ids:
+                return True
+
+        guild = guild_obj or (getattr(channel_obj, "guild", None) if channel_obj else None)
+        if guild and str(guild.id) in self.monitored_channel_ids:
+            return True
+
+        return False
+
+    async def _subscribe_monitored_channels(self):
+        """
+        Subscribes to all connected guilds and specific monitored channels on Discord's gateway.
+        Guarantees that large servers (>75,000 members) and channels stream MESSAGE_CREATE events in real time
+        even when Discord Desktop is not open in the background.
+        """
+        if not self._client or not getattr(self._client, "_connection", None):
+            return
+
+        subs = getattr(self._client._connection, "subscriptions", None)
+        if not subs:
+            return
+
+        # 1. Subscribe to all user guilds so large servers do not throttle messages
+        for guild in list(self._client.guilds):
+            try:
+                await subs.subscribe_to(guild, typing=True, threads=True, activities=False, member_updates=False)
+            except Exception:
+                pass
+
+        # 2. For each configured channel ID, ensure channel message streaming [0, 99] is active
+        if self.monitored_channel_ids:
+            subscribed_count = 0
+            for cid_str in list(self.monitored_channel_ids):
+                try:
+                    cid = int(cid_str)
+                    ch = self._client.get_channel(cid)
+                    if not ch:
+                        try:
+                            ch = await self._client.fetch_channel(cid)
+                        except Exception:
+                            ch = None
+                    if ch and hasattr(ch, "guild") and ch.guild:
+                        guild = ch.guild
+                        try:
+                            await subs.subscribe_to(guild, typing=True, threads=True)
+                        except Exception:
+                            pass
+                        await subs.subscribe_to_channels(guild, {cid: [(0, 99)]})
+                        subscribed_count += 1
+                        logger.info(f"[Discord] Live channel stream active for #{getattr(ch, 'name', cid_str)} in '{guild.name}'")
+                except Exception as ex:
+                    logger.debug(f"[Discord] Subscribed channel ping: {ex}")
+            if subscribed_count > 0:
+                logger.info(f"[Discord] Successfully subscribed to {subscribed_count} target channel(s) on Discord Gateway.")
 
     def start(self, token: str):
         """Starts Discord monitoring in a dedicated background thread."""
@@ -158,6 +229,16 @@ class DiscordMonitor:
             logger.info(f"[Discord] Connected as {user_tag} across {guild_count} server(s).")
             if self.on_status_change:
                 self.on_status_change("CONNECTED", f"Connected as {user_tag} ({guild_count} servers)")
+            # Asynchronously subscribe to guilds and target channels immediately
+            asyncio.create_task(self._subscribe_monitored_channels())
+
+        @self._client.event
+        async def on_guild_join(guild: discord.Guild):
+            if hasattr(self._client._connection, "subscriptions"):
+                try:
+                    await self._client._connection.subscriptions.subscribe_to(guild, typing=True, threads=True)
+                except Exception:
+                    pass
 
         @self._client.event
         async def on_disconnect():
@@ -170,14 +251,14 @@ class DiscordMonitor:
             if self.is_running and self.on_status_change:
                 self.on_status_change("CONNECTED", "Discord session resumed")
             logger.info("[Discord] Gateway session resumed successfully.")
+            asyncio.create_task(self._subscribe_monitored_channels())
 
         @self._client.event
         async def on_message(message: discord.Message):
             if not self.is_running:
                 return
 
-            ch_id_str = str(message.channel.id)
-            if self.monitored_channel_ids and ch_id_str not in self.monitored_channel_ids:
+            if not self._is_channel_monitored(message.channel.id, message.channel, message.guild):
                 return
 
             if message.author == self._client.user:
@@ -200,8 +281,7 @@ class DiscordMonitor:
             if not self.is_running:
                 return
 
-            ch_id_str = str(after.channel.id)
-            if self.monitored_channel_ids and ch_id_str not in self.monitored_channel_ids:
+            if not self._is_channel_monitored(after.channel.id, after.channel, after.guild):
                 return
 
             if after.author == self._client.user:
@@ -222,8 +302,9 @@ class DiscordMonitor:
             if not self.is_running or self.is_paused:
                 return
 
-            ch_id_str = str(payload.channel_id)
-            if self.monitored_channel_ids and ch_id_str not in self.monitored_channel_ids:
+            guild_obj = self._client.get_guild(payload.guild_id) if getattr(payload, "guild_id", None) else None
+            channel_obj = self._client.get_channel(payload.channel_id)
+            if not self._is_channel_monitored(payload.channel_id, channel_obj, guild_obj):
                 return
 
             # If cached message was already dispatched in on_message_edit, skip redundant call
@@ -231,7 +312,7 @@ class DiscordMonitor:
                 return
 
             try:
-                channel = self._client.get_channel(payload.channel_id)
+                channel = channel_obj or self._client.get_channel(payload.channel_id)
                 if channel:
                     msg = await channel.fetch_message(payload.message_id)
                     if msg and msg.author != self._client.user:
