@@ -360,3 +360,15 @@ All code, configurations, tests, and documentation are prepared for automatic pu
   3. Initializes repo, points remote to `https://github.com/SyphoxYt/pupu-snipes.git`, branch `main`.
   4. Stages all files (excluding databases, credentials, and temp logs via `.gitignore`).
   5. Commits and pushes changes cleanly.
+
+### Binary Releases (Executable Distribution):
+`.gitignore` excludes `*.exe`, `dist/`, and `_internal/`, so the compiled application is published as a **GitHub Release asset** instead of being committed to the repository:
+1. Rebuild with `python build_exe.py` (creates `dist/PupuSnipe/PupuSnipe.exe`, deploys the root copy, AppData install, and shortcuts).
+2. Zip the onedir distribution:
+   ```powershell
+   [System.IO.Compression.ZipFile]::CreateFromDirectory("dist\PupuSnipe", "dist\PupuSnipe-v1.0.0-win64.zip", "Optimal", $true)
+   ```
+3. Create the release and upload the asset via the GitHub REST API (token from `git credential fill`):
+   - `POST https://api.github.com/repos/SyphoxYt/pupu-snipes/releases`
+   - `POST https://uploads.github.com/repos/SyphoxYt/pupu-snipes/releases/<id>/assets?name=<zip>`
+4. Download URL format: `https://github.com/SyphoxYt/pupu-snipes/releases/download/<tag>/<zip>`
