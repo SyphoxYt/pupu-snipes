@@ -41,7 +41,7 @@ Inspired by *Sol Sniper V3* and featuring deep native integration with the **Fis
   - `Leave Game Before Joining`: Sends automated `Esc -> L -> Enter` sequence to leave previous server cleanly.
   - `Close Roblox Before Joining`: Auto-terminates existing clients if desired.
   - `Minimize Other Windows`: Maximizes performance by focusing Roblox.
-- **Custom Link Sniping**: Full support for third-party links: **RoPro** (`ro.pro` / `ropro.io`), **JoinRBX** (`join-rbx.vexsys.site`), **RoSeal** (`roseal.live`), **FishStrap** (`fishstrap.app`), and **Join-Gateway pages** (`xe33cc.github.io/join/?s=<UUID>`, any `*.github.io/join` page, and `/join/<UUID>` links).
+- **Custom Link Sniping**: Full support for third-party links: **RoPro** (`ro.pro` / `ropro.io`), **JoinRBX** (`join-rbx.vexsys.site`), **RoSeal** (`roseal.live`), **FishStrap** (`fishstrap.app`), and **Join-Gateway pages** (`xe33cc.github.io/join/?s=<UUID>`, any `*.github.io/join` page, `/join/<UUID>` links, plus direct `placeId` + `gameInstanceId` protocol/web links).
 - **Illuminated Cyberpunk UI**: Radiant glowing gaming emblem logo, smooth animated tab transitions, pulsing engine indicators, and responsive `GlowCard` layouts.
 
 ### 5. Multi-Server & Multi-Channel Discord Monitoring

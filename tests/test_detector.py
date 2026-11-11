@@ -301,6 +301,44 @@ class TestLinkDetector(unittest.TestCase):
         self.assertEqual(link.link_code, "9de406b3-cb36-4c4b-ae90-a1f2678dda26")
         self.assertIn("Glitched", combined_text)
 
+    def test_direct_game_instance_links(self):
+        # Native protocol form emitted by the join-gateway page
+        proto = (
+            "roblox://experiences/start?placeId=15532962292"
+            "&gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        )
+        link = self.detector.extract_from_text(proto)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_type, "gameinstance")
+        self.assertEqual(link.place_id, "15532962292")
+        self.assertEqual(link.link_code, "9de406b3-cb36-4c4b-ae90-a1f2678dda26")
+
+        # Web fallback form from the same page
+        web = (
+            "https://www.roblox.com/games/start?placeId=15532962292"
+            "&gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        )
+        link_web = self.detector.extract_from_text(web)
+        self.assertIsNotNone(link_web)
+        self.assertTrue(link_web.is_valid)
+        self.assertEqual(link_web.link_type, "gameinstance")
+        self.assertEqual(
+            link_web.protocol_url,
+            "roblox://experiences/start?placeId=15532962292"
+            "&gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        )
+
+        # Reversed parameter order
+        reversed_url = (
+            "roblox://experiences/start?gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+            "&placeId=15532962292"
+        )
+        link_rev = self.detector.extract_from_text(reversed_url)
+        self.assertIsNotNone(link_rev)
+        self.assertTrue(link_rev.is_valid)
+        self.assertEqual(link_rev.place_id, "15532962292")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -51,7 +51,7 @@ pupusnipes/
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
 │   ├── assets/               # Application icon (.ico) and gaming logo (.png)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 47 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 48 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -191,9 +191,10 @@ To guarantee you join private servers **before other players and public bots**, 
 - **Supported Variants**:
   - Query form on any host: `/join/?s=<UUID>`, `/join/?id=<UUID>`, including extra tracking parameters (`&utm=...`).
   - Path form: `/join/<UUID>`.
+  - Direct game-instance links in both native (`roblox://experiences/start?placeId=...&gameInstanceId=<UUID>`) and web (`roblox.com/games/start?placeId=...&gameInstanceId=<UUID>`) forms, with any parameter order.
   - Works inside raw content, embed descriptions/fields, Markdown links, and Discord component buttons.
 - **Config**: Added `snipe_joingate_links` (default `True`) and a **Snipe Join-Page Links** checkbox on the Sniper tab.
-- **Tests**: Added `test_join_gateway_link` and `test_join_gateway_link_in_discord_message` to `tests/test_detector.py`. Total test suite is now **47 passing tests**.
+- **Tests**: Added `test_join_gateway_link`, `test_join_gateway_link_in_discord_message`, and `test_direct_game_instance_links` to `tests/test_detector.py`. Total test suite is now **48 passing tests**.
 
 ---
 

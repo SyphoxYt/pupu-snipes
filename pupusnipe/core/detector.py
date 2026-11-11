@@ -15,7 +15,7 @@ from .config import (
 
 # Link types that resolve to an actual Roblox game/server join
 GAME_LINK_TYPES = (
-    "share", "protocol", "standard", "deeplink",
+    "share", "protocol", "standard", "deeplink", "gameinstance",
     "ropro", "joinrbx", "roseal", "fishstrap", "joingate"
 )
 
@@ -43,6 +43,28 @@ RE_SHARE_PROTOCOL = re.compile(
 # Deep-links: roblox.com/games/start?placeId=...&launchData=...
 RE_DEEPLINK = re.compile(
     r'roblox\.com/games/start\?placeId=(\d+)[^#\s<>\)]*?launchData=(\d+)/([a-zA-Z0-9_\-]+)',
+    re.IGNORECASE
+)
+
+# Direct game-instance links (placeId + gameInstanceId), emitted by join-gateway pages
+RE_GAME_INSTANCE_WEB = re.compile(
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/games/start\?'
+    r'[^#\s<>\)]*?placeId=(\d+)[^#\s<>\)]*?gameInstanceId=([a-zA-Z0-9_\-]+)',
+    re.IGNORECASE
+)
+RE_GAME_INSTANCE_WEB_ALT = re.compile(
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*roblox\.com/games/start\?'
+    r'[^#\s<>\)]*?gameInstanceId=([a-zA-Z0-9_\-]+)[^#\s<>\)]*?placeId=(\d+)',
+    re.IGNORECASE
+)
+RE_GAME_INSTANCE_PROTOCOL = re.compile(
+    r'roblox://(?:experiences/start|navigation/game_details)?\??'
+    r'[^#\s<>\)]*?placeId=(\d+)[^#\s<>\)]*?gameInstanceId=([a-zA-Z0-9_\-]+)',
+    re.IGNORECASE
+)
+RE_GAME_INSTANCE_PROTOCOL_ALT = re.compile(
+    r'roblox://(?:experiences/start|navigation/game_details)?\??'
+    r'[^#\s<>\)]*?gameInstanceId=([a-zA-Z0-9_\-]+)[^#\s<>\)]*?placeId=(\d+)',
     re.IGNORECASE
 )
 
@@ -527,7 +549,41 @@ class LinkDetector:
                 link_type="deeplink"
             )
 
-        # 6. Custom Links (RoPro, JoinRBX, RoSeal, FishStrap)
+        # 6. Direct game-instance links (placeId + gameInstanceId, any parameter order)
+        gi_match = None
+        for gi_pattern, gi_groups in (
+            (RE_GAME_INSTANCE_WEB, (1, 2)),
+            (RE_GAME_INSTANCE_WEB_ALT, (2, 1)),
+            (RE_GAME_INSTANCE_PROTOCOL, (1, 2)),
+            (RE_GAME_INSTANCE_PROTOCOL_ALT, (2, 1)),
+        ):
+            gi_match = gi_pattern.search(clean_text)
+            if gi_match:
+                place_id = gi_match.group(gi_groups[0])
+                instance_id = gi_match.group(gi_groups[1])
+                break
+
+        if gi_match:
+            if self.strict_place_id and place_id != self.target_place_id and place_id not in SUPPORTED_PLACE_IDS:
+                return ExtractedLink(
+                    raw_url=gi_match.group(0),
+                    place_id=place_id,
+                    link_code=instance_id,
+                    protocol_url="",
+                    is_valid=False,
+                    error_reason=f"Place ID {place_id} does not match target {self.target_place_id}"
+                )
+            proto_url = f"roblox://experiences/start?placeId={place_id}&gameInstanceId={instance_id}"
+            return ExtractedLink(
+                raw_url=gi_match.group(0),
+                place_id=place_id,
+                link_code=instance_id,
+                protocol_url=proto_url,
+                is_valid=True,
+                link_type="gameinstance"
+            )
+
+        # 7. Custom Links (RoPro, JoinRBX, RoSeal, FishStrap)
         if self.snipe_ropro:
             ropro_match = RE_ROPRO.search(clean_text)
             if ropro_match:
@@ -601,7 +657,7 @@ class LinkDetector:
                     link_type="fishstrap"
                 )
 
-        # 7. Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
+        # 8. Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
         if self.snipe_joingate:
             gateway_match = RE_JOIN_GATEWAY_QUERY.search(clean_text)
             if not gateway_match:
@@ -621,7 +677,7 @@ class LinkDetector:
                     link_type="joingate"
                 )
 
-        # 8. Raw standalone code (e.g. 32-character shareCode or privateServerLinkCode)
+        # 9. Raw standalone code (e.g. 32-character shareCode or privateServerLinkCode)
         stripped = clean_text.strip()
         if re.match(r'^[a-fA-F0-9]{32}$', stripped):
             proto_url = f"roblox://navigation/share_links?code={stripped}&type=Server"
