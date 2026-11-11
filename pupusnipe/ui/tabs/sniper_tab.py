@@ -347,6 +347,11 @@ class SniperTab(QtWidgets.QWidget):
         self.chk_fishstrap.toggled.connect(lambda v: self.sig_setting_changed.emit("snipe_fishstrap_links", v))
         links_layout.addWidget(self.chk_fishstrap)
 
+        self.chk_joingate = QtWidgets.QCheckBox("Snipe Join-Page Links (xe33cc.github.io/join, *.github.io/join, ?s=UUID)")
+        self.chk_joingate.setChecked(True)
+        self.chk_joingate.toggled.connect(lambda v: self.sig_setting_changed.emit("snipe_joingate_links", v))
+        links_layout.addWidget(self.chk_joingate)
+
         links_card.add_layout(links_layout)
         main_layout.addWidget(links_card)
 
@@ -487,6 +492,7 @@ class SniperTab(QtWidgets.QWidget):
             (self.chk_joinrbx, "snipe_joinrbx_links"),
             (self.chk_roseal, "snipe_roseal_links"),
             (self.chk_fishstrap, "snipe_fishstrap_links"),
+            (self.chk_joingate, "snipe_joingate_links"),
         ]
         for chk, attr in checks:
             val = getattr(config, attr, None)

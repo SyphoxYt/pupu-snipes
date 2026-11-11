@@ -18,6 +18,9 @@ SUPPORTED_PLACE_IDS = {
     "17068593414": "Sol's RNG [Testing / Event]"
 }
 
+# Place ID used by join-gateway pages (e.g. xe33cc.github.io/join/?s=<UUID>)
+JOIN_GATEWAY_PLACE_ID = "15532962292"
+
 # Legitimate Roblox domains
 LEGITIMATE_ROBLOX_DOMAINS = [
     "roblox.com",
@@ -97,6 +100,7 @@ class AppConfig:
     snipe_joinrbx_links: bool = True
     snipe_roseal_links: bool = True
     snipe_fishstrap_links: bool = True
+    snipe_joingate_links: bool = True
     
     # Hotkeys
     hotkey_toggle: str = "F4"

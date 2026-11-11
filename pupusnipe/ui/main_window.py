@@ -67,6 +67,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.detector.snipe_joinrbx = bool(self.config.snipe_joinrbx_links)
         self.detector.snipe_roseal = bool(self.config.snipe_roseal_links)
         self.detector.snipe_fishstrap = bool(self.config.snipe_fishstrap_links)
+        self.detector.snipe_joingate = bool(getattr(self.config, "snipe_joingate_links", True))
 
         self.matcher = KeywordMatcher()
         self.launcher = RobloxLauncher(cooldown_seconds=self.config.duplicate_cooldown_sec)
@@ -837,6 +838,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.detector.snipe_roseal = bool(value)
             elif key == "snipe_fishstrap_links":
                 self.detector.snipe_fishstrap = bool(value)
+            elif key == "snipe_joingate_links":
+                self.detector.snipe_joingate = bool(value)
             logger.info(f"Setting updated and saved to storage: {key} = {value}")
 
     def _on_fishing_config_changed(self, key: str, value):

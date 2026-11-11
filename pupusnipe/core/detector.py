@@ -6,7 +6,21 @@ Supports standard Roblox links, share codes, deep-links, and custom links (RoPro
 import re
 import urllib.parse
 from typing import Optional, Tuple, Dict, Any, List
-from .config import DEFAULT_SOLS_RNG_PLACE_ID, SUPPORTED_PLACE_IDS, LEGITIMATE_ROBLOX_DOMAINS
+from .config import (
+    DEFAULT_SOLS_RNG_PLACE_ID,
+    JOIN_GATEWAY_PLACE_ID,
+    SUPPORTED_PLACE_IDS,
+    LEGITIMATE_ROBLOX_DOMAINS
+)
+
+# Link types that resolve to an actual Roblox game/server join
+GAME_LINK_TYPES = (
+    "share", "protocol", "standard", "deeplink",
+    "ropro", "joinrbx", "roseal", "fishstrap", "joingate"
+)
+
+# UUID (8-4-4-4-12 hex) used as gameInstanceId by join-gateway pages
+RE_UUID = r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
 # Precompiled regular expressions for maximum extraction speed
 RE_STANDARD_LINK = re.compile(
@@ -68,6 +82,21 @@ RE_FISHSTRAP = re.compile(
     re.IGNORECASE
 )
 
+# Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
+# These static pages resolve client-side to:
+#   roblox://experiences/start?placeId=15532962292&gameInstanceId=<UUID>
+# Query form: /join/?s=<UUID> or /join/?id=<UUID> (extra params allowed)
+RE_JOIN_GATEWAY_QUERY = re.compile(
+    r'https?://[a-zA-Z0-9_\-\.]+(?::\d+)?/join/?\?(?:[^#\s<>\)"\']*?&)?(?:s|id)=(' + RE_UUID + r')',
+    re.IGNORECASE
+)
+
+# Path form: /join/<UUID>
+RE_JOIN_GATEWAY_PATH = re.compile(
+    r'https?://[a-zA-Z0-9_\-\.]+(?::\d+)?/join/(' + RE_UUID + r')(?![0-9a-zA-Z\-])',
+    re.IGNORECASE
+)
+
 # Suspicious / phishing domain indicators
 SUSPICIOUS_PATTERNS = [
     re.compile(r'robl[o0]x[^\.]*\.[a-z]+', re.IGNORECASE),
@@ -114,7 +143,8 @@ class LinkDetector:
         snipe_ropro: bool = True,
         snipe_joinrbx: bool = True,
         snipe_roseal: bool = True,
-        snipe_fishstrap: bool = True
+        snipe_fishstrap: bool = True,
+        snipe_joingate: bool = True
     ):
         self.target_place_id = str(target_place_id)
         self.strict_place_id = strict_place_id
@@ -122,6 +152,7 @@ class LinkDetector:
         self.snipe_joinrbx = snipe_joinrbx
         self.snipe_roseal = snipe_roseal
         self.snipe_fishstrap = snipe_fishstrap
+        self.snipe_joingate = snipe_joingate
 
     def is_phishing_url(self, text: str) -> bool:
         """Check for known phishing patterns and malicious typosquatting."""
@@ -290,7 +321,7 @@ class LinkDetector:
             found = self.extract_from_text(cand_str)
             if found and found.is_valid and not found.is_phishing:
                 # Discard non-game links (e.g. discord.com links, roblox user profile links)
-                if found.link_type in ("share", "protocol", "standard", "deeplink", "ropro", "joinrbx", "roseal", "fishstrap"):
+                if found.link_type in GAME_LINK_TYPES:
                     extracted = found
                     break
 
@@ -300,7 +331,7 @@ class LinkDetector:
                     unquoted = urllib.parse.unquote(cand_str)
                     found_unq = self.extract_from_text(unquoted)
                     if found_unq and found_unq.is_valid and not found_unq.is_phishing:
-                        if found_unq.link_type in ("share", "protocol", "standard", "deeplink", "ropro", "joinrbx", "roseal", "fishstrap"):
+                        if found_unq.link_type in GAME_LINK_TYPES:
                             extracted = found_unq
                             break
                 except Exception:
@@ -570,7 +601,27 @@ class LinkDetector:
                     link_type="fishstrap"
                 )
 
-        # 7. Raw standalone code (e.g. 32-character shareCode or privateServerLinkCode)
+        # 7. Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
+        if self.snipe_joingate:
+            gateway_match = RE_JOIN_GATEWAY_QUERY.search(clean_text)
+            if not gateway_match:
+                gateway_match = RE_JOIN_GATEWAY_PATH.search(clean_text)
+            if gateway_match:
+                instance_id = gateway_match.group(1)
+                proto_url = (
+                    f"roblox://experiences/start?"
+                    f"placeId={JOIN_GATEWAY_PLACE_ID}&gameInstanceId={instance_id}"
+                )
+                return ExtractedLink(
+                    raw_url=gateway_match.group(0),
+                    place_id=JOIN_GATEWAY_PLACE_ID,
+                    link_code=instance_id,
+                    protocol_url=proto_url,
+                    is_valid=True,
+                    link_type="joingate"
+                )
+
+        # 8. Raw standalone code (e.g. 32-character shareCode or privateServerLinkCode)
         stripped = clean_text.strip()
         if re.match(r'^[a-fA-F0-9]{32}$', stripped):
             proto_url = f"roblox://navigation/share_links?code={stripped}&type=Server"

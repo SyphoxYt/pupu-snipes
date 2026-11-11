@@ -248,6 +248,59 @@ class TestLinkDetector(unittest.TestCase):
         self.assertTrue(link.is_valid)
         self.assertEqual(link.link_code, "roprocustomcode123")
 
+    def test_join_gateway_link(self):
+        # xe33Hunt GitHub Pages join link (UUID is used as gameInstanceId)
+        sample = "https://xe33cc.github.io/join/?s=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        link = self.detector.extract_from_text(sample)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertFalse(link.is_phishing)
+        self.assertEqual(link.link_type, "joingate")
+        self.assertEqual(link.link_code, "9de406b3-cb36-4c4b-ae90-a1f2678dda26")
+        self.assertEqual(link.place_id, "15532962292")
+        self.assertEqual(
+            link.protocol_url,
+            "roblox://experiences/start?placeId=15532962292"
+            "&gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        )
+
+        # Alternate query key (?id=) and extra tracking params before/after
+        alt = (
+            "https://xe33cc.github.io/join/?utm=discord&id=0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+            "&ref=bot"
+        )
+        link_alt = self.detector.extract_from_text(alt)
+        self.assertIsNotNone(link_alt)
+        self.assertTrue(link_alt.is_valid)
+        self.assertEqual(link_alt.link_code, "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d")
+
+        # Path form: /join/<UUID>
+        path_form = "https://xe33cc.github.io/join/11111111-2222-3333-4444-555555555555"
+        link_path = self.detector.extract_from_text(path_form)
+        self.assertIsNotNone(link_path)
+        self.assertTrue(link_path.is_valid)
+        self.assertEqual(link_path.link_code, "11111111-2222-3333-4444-555555555555")
+
+        # Invalid UUID must not be treated as a join link
+        self.assertIsNone(self.detector.extract_from_text("https://xe33cc.github.io/join/?s=not-a-uuid"))
+
+        # Feature toggle disables detection
+        self.detector.snipe_joingate = False
+        self.assertIsNone(self.detector.extract_from_text(sample))
+        self.detector.snipe_joingate = True
+
+    def test_join_gateway_link_in_discord_message(self):
+        content = (
+            "Glitched biome found! Join fast: "
+            "https://xe33cc.github.io/join/?s=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
+        )
+        link, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertEqual(link.link_type, "joingate")
+        self.assertEqual(link.link_code, "9de406b3-cb36-4c4b-ae90-a1f2678dda26")
+        self.assertIn("Glitched", combined_text)
+
 
 if __name__ == "__main__":
     unittest.main()

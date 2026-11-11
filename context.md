@@ -51,7 +51,7 @@ pupusnipes/
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
 │   ├── assets/               # Application icon (.ico) and gaming logo (.png)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 45 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 47 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -183,6 +183,17 @@ To guarantee you join private servers **before other players and public bots**, 
     - Preserved resolved metadata in `storage.set_channel_ids()`: whenever channels are saved, existing resolved server names and channel titles are retained rather than reset to defaults.
     - Styled table items with cyberpunk neon accents: Server Name in bold emerald green (`#00ff88`), Channel Name with `#` prefix in bold neon cyan (`#00f0ff`), Server ID in sleek muted gray (`#94a3b8`), and Channel ID in readable slate (`#cbd5e1`).
   - Added unit test `test_metadata_update_and_preservation` in `tests/test_channels.py` ensuring persistence across saves. Total test suite increased to **44 tests**.
+
+### Phase 11: Join-Gateway (GitHub Pages) Link Support
+- **New Link Format**: Added detection for static join-gateway pages such as `https://xe33cc.github.io/join/?s=9de406b3-cb36-4c4b-ae90-a1f2678dda26`.
+  - These pages do not contain a Roblox URL in their HTML/embed; the UUID in `?s=` (or `?id=`) is the `gameInstanceId` of a Sol's RNG private server.
+  - PupuSnipe resolves them offline (zero network requests) to `roblox://experiences/start?placeId=15532962292&gameInstanceId=<UUID>`.
+- **Supported Variants**:
+  - Query form on any host: `/join/?s=<UUID>`, `/join/?id=<UUID>`, including extra tracking parameters (`&utm=...`).
+  - Path form: `/join/<UUID>`.
+  - Works inside raw content, embed descriptions/fields, Markdown links, and Discord component buttons.
+- **Config**: Added `snipe_joingate_links` (default `True`) and a **Snipe Join-Page Links** checkbox on the Sniper tab.
+- **Tests**: Added `test_join_gateway_link` and `test_join_gateway_link_in_discord_message` to `tests/test_detector.py`. Total test suite is now **47 passing tests**.
 
 ---
 
