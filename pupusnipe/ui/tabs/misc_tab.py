@@ -3,18 +3,31 @@ PupuSnipe Miscellaneous Tab
 Anti-bait filtering, User & Keyword Blacklists, Global Hotkeys, and Notification Options.
 Wrapped in a responsive scroll container to prevent scaling/overflow bugs.
 """
+import os
+
 from PySide6 import QtCore, QtGui, QtWidgets
 from ...core.storage import StorageManager
+from ...core.sounds import (
+    CUSTOM_SOUND_ID,
+    DEFAULT_SOUND_ID,
+    SOUND_PRESETS,
+    SYSTEM_BEEP_ID,
+    SoundManager,
+    get_preset_label,
+)
 
 
 class MiscTab(QtWidgets.QWidget):
     sig_blacklists_updated = QtCore.Signal(list, list)
     sig_hotkeys_updated = QtCore.Signal(dict)
     sig_setting_changed = QtCore.Signal(str, object)
+    sig_test_webhook = QtCore.Signal(str, bool)
 
     def __init__(self, storage: StorageManager, parent=None):
         super().__init__(parent)
         self.storage = storage
+        self._custom_sound_path = ""
+        self._preview_sound = SoundManager()
         self._init_ui()
         self.load_settings()
 
@@ -131,13 +144,102 @@ class MiscTab(QtWidgets.QWidget):
         self.chk_toast.setChecked(True)
         self.chk_toast.toggled.connect(lambda v: self.sig_setting_changed.emit("enable_notifications", v))
 
-        self.chk_sound = QtWidgets.QCheckBox("Play Audio Chime Sound on Link Sniped")
+        self.chk_sound = QtWidgets.QCheckBox("Play a sound effect when a link is sniped")
         self.chk_sound.setChecked(True)
         self.chk_sound.toggled.connect(lambda v: self.sig_setting_changed.emit("play_sound", v))
 
+        sound_row = QtWidgets.QHBoxLayout()
+        sound_row.setSpacing(8)
+        sound_label = QtWidgets.QLabel("Snipe sound:")
+        sound_label.setStyleSheet("color: #94a3b8; font-weight: 600; font-size: 11px;")
+        sound_row.addWidget(sound_label)
+
+        self.combo_sound = QtWidgets.QComboBox()
+        self.combo_sound.setMinimumHeight(32)
+        for preset in SOUND_PRESETS:
+            self.combo_sound.addItem(preset["name"], preset["id"])
+            self.combo_sound.setItemData(
+                self.combo_sound.count() - 1,
+                preset.get("description", ""),
+                QtCore.Qt.ToolTipRole,
+            )
+        self.combo_sound.addItem(get_preset_label(SYSTEM_BEEP_ID), SYSTEM_BEEP_ID)
+        self.combo_sound.addItem(get_preset_label(CUSTOM_SOUND_ID), CUSTOM_SOUND_ID)
+        self.combo_sound.currentIndexChanged.connect(self._on_sound_preset_changed)
+        sound_row.addWidget(self.combo_sound, 1)
+
+        self.btn_browse_sound = QtWidgets.QPushButton("📂 Browse…")
+        self.btn_browse_sound.setProperty("class", "btn-secondary")
+        self.btn_browse_sound.clicked.connect(self._browse_custom_sound)
+        sound_row.addWidget(self.btn_browse_sound)
+
+        self.btn_preview_sound = QtWidgets.QPushButton("▶ Preview")
+        self.btn_preview_sound.setProperty("class", "btn-secondary")
+        self.btn_preview_sound.clicked.connect(self._preview_selected_sound)
+        sound_row.addWidget(self.btn_preview_sound)
+
         notif_layout.addWidget(self.chk_toast)
         notif_layout.addWidget(self.chk_sound)
+        notif_layout.addLayout(sound_row)
+
+        self.lbl_custom_sound = QtWidgets.QLabel("")
+        self.lbl_custom_sound.setWordWrap(True)
+        self.lbl_custom_sound.setStyleSheet("color: #64748b; font-size: 10px; padding-left: 2px;")
+        notif_layout.addWidget(self.lbl_custom_sound)
         main_layout.addWidget(notif_group)
+
+        # 4. Discord Webhook Alerts
+        webhook_group = QtWidgets.QGroupBox("Discord Webhook Alerts")
+        webhook_layout = QtWidgets.QVBoxLayout(webhook_group)
+        webhook_layout.setSpacing(10)
+        webhook_layout.setContentsMargins(16, 22, 16, 16)
+
+        self.chk_webhook = QtWidgets.QCheckBox("Send a webhook alert when a server is sniped")
+        self.chk_webhook.toggled.connect(lambda v: self.sig_setting_changed.emit("webhook_enabled", bool(v)))
+        webhook_layout.addWidget(self.chk_webhook)
+
+        webhook_row = QtWidgets.QHBoxLayout()
+        webhook_row.setSpacing(8)
+        self.edit_webhook_url = QtWidgets.QLineEdit()
+        self.edit_webhook_url.setPlaceholderText("https://discord.com/api/webhooks/…")
+        self.edit_webhook_url.setEchoMode(QtWidgets.QLineEdit.Password)
+        self.edit_webhook_url.setMinimumHeight(34)
+        self.edit_webhook_url.editingFinished.connect(self._on_webhook_url_edited)
+        webhook_row.addWidget(self.edit_webhook_url, 1)
+
+        self.btn_show_webhook = QtWidgets.QPushButton("Show")
+        self.btn_show_webhook.setProperty("class", "btn-secondary")
+        self.btn_show_webhook.setCheckable(True)
+        self.btn_show_webhook.setMaximumWidth(64)
+        self.btn_show_webhook.toggled.connect(self._toggle_webhook_visibility)
+        webhook_row.addWidget(self.btn_show_webhook)
+
+        self.btn_test_webhook = QtWidgets.QPushButton("🚀 Send Test")
+        self.btn_test_webhook.setProperty("class", "btn-secondary")
+        self.btn_test_webhook.clicked.connect(self._test_webhook)
+        webhook_row.addWidget(self.btn_test_webhook)
+        webhook_layout.addLayout(webhook_row)
+
+        self.chk_ping_everyone = QtWidgets.QCheckBox("Ping @everyone in the webhook message")
+        self.chk_ping_everyone.setChecked(True)
+        self.chk_ping_everyone.toggled.connect(lambda v: self.sig_setting_changed.emit("webhook_ping_everyone", bool(v)))
+        webhook_layout.addWidget(self.chk_ping_everyone)
+
+        hint = QtWidgets.QLabel(
+            "The alert includes the sniped biome, source server/channel, latency, "
+            "and a clickable Roblox join link. The biome is updated automatically once confirmed in-game."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #64748b; font-size: 10px;")
+        webhook_layout.addWidget(hint)
+
+        self.lbl_webhook_status = QtWidgets.QLabel("")
+        self.lbl_webhook_status.setWordWrap(True)
+        self.lbl_webhook_status.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self.lbl_webhook_status.setVisible(False)
+        webhook_layout.addWidget(self.lbl_webhook_status)
+
+        main_layout.addWidget(webhook_group)
 
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
@@ -153,6 +255,32 @@ class MiscTab(QtWidgets.QWidget):
         self.chk_sound.blockSignals(True)
         self.chk_sound.setChecked(bool(sound_val))
         self.chk_sound.blockSignals(False)
+
+        # Load snipe sound preset + optional custom WAV
+        self._custom_sound_path = str(self.storage.get_setting("custom_sound_path", "") or "")
+        sound_preset = str(self.storage.get_setting("sound_preset", DEFAULT_SOUND_ID) or DEFAULT_SOUND_ID)
+        valid_ids = {p["id"] for p in SOUND_PRESETS} | {SYSTEM_BEEP_ID, CUSTOM_SOUND_ID}
+        if sound_preset not in valid_ids:
+            sound_preset = DEFAULT_SOUND_ID
+        self._set_sound_combo(sound_preset)
+        self._update_sound_controls()
+
+        # Load webhook settings
+        webhook_enabled = self.storage.get_setting("webhook_enabled", False)
+        webhook_url = str(self.storage.get_setting("webhook_url", "") or "")
+        ping_everyone = self.storage.get_setting("webhook_ping_everyone", True)
+
+        self.chk_webhook.blockSignals(True)
+        self.chk_webhook.setChecked(bool(webhook_enabled))
+        self.chk_webhook.blockSignals(False)
+
+        self.edit_webhook_url.blockSignals(True)
+        self.edit_webhook_url.setText(webhook_url)
+        self.edit_webhook_url.blockSignals(False)
+
+        self.chk_ping_everyone.blockSignals(True)
+        self.chk_ping_everyone.setChecked(bool(ping_everyone))
+        self.chk_ping_everyone.blockSignals(False)
 
         # Load hotkeys
         saved_hk = self.storage.get_setting("hotkeys", {})
@@ -219,3 +347,107 @@ class MiscTab(QtWidgets.QWidget):
             "reset_cooldown": self.edit_hk_reset_cd.text().strip().lower()
         }
         self.sig_hotkeys_updated.emit(hk_map)
+
+    # --- Snipe Sound Selection ---
+    def _set_sound_combo(self, preset_id: str):
+        index = self.combo_sound.findData(preset_id)
+        if index < 0:
+            index = self.combo_sound.findData(DEFAULT_SOUND_ID)
+        self.combo_sound.blockSignals(True)
+        self.combo_sound.setCurrentIndex(max(0, index))
+        self.combo_sound.blockSignals(False)
+
+    def _update_sound_controls(self):
+        preset_id = self.combo_sound.currentData()
+        is_custom = preset_id == CUSTOM_SOUND_ID
+        self.btn_browse_sound.setEnabled(is_custom)
+        if is_custom:
+            valid_custom = (
+                bool(self._custom_sound_path)
+                and os.path.isfile(self._custom_sound_path)
+                and self._custom_sound_path.lower().endswith(".wav")
+            )
+            if valid_custom:
+                self.lbl_custom_sound.setText(f"Using custom file: {os.path.basename(self._custom_sound_path)}")
+                self.lbl_custom_sound.setStyleSheet("color: #00ff88; font-size: 10px; padding-left: 2px;")
+            elif self._custom_sound_path:
+                self.lbl_custom_sound.setText(f"Custom file missing or not a .wav: {self._custom_sound_path}")
+                self.lbl_custom_sound.setStyleSheet("color: #ff6b6b; font-size: 10px; padding-left: 2px;")
+            else:
+                self.lbl_custom_sound.setText("No custom .wav selected — click Browse… to choose one.")
+                self.lbl_custom_sound.setStyleSheet("color: #64748b; font-size: 10px; padding-left: 2px;")
+            self.lbl_custom_sound.setVisible(True)
+        else:
+            self.lbl_custom_sound.setVisible(False)
+
+    def _on_sound_preset_changed(self, _index: int):
+        preset_id = self.combo_sound.currentData()
+        self.sig_setting_changed.emit("sound_preset", preset_id)
+        if preset_id == CUSTOM_SOUND_ID and (
+            not self._custom_sound_path or not os.path.isfile(self._custom_sound_path)
+        ):
+            self._browse_custom_sound()
+        self._update_sound_controls()
+
+    def _browse_custom_sound(self):
+        start_dir = os.path.dirname(self._custom_sound_path) if self._custom_sound_path else ""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select Snipe Sound (.wav)",
+            start_dir,
+            "WAV audio (*.wav)",
+        )
+        if path:
+            if not path.lower().endswith(".wav"):
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Unsupported Sound File",
+                    "PupuSnipe can only play uncompressed .wav files for snipe alerts.\n\n"
+                    "Please choose a .wav file (or convert your sound to WAV first).",
+                )
+                return
+            self._custom_sound_path = path
+            self.sig_setting_changed.emit("custom_sound_path", path)
+            self._set_sound_combo(CUSTOM_SOUND_ID)
+            self.sig_setting_changed.emit("sound_preset", CUSTOM_SOUND_ID)
+        self._update_sound_controls()
+
+    def _preview_selected_sound(self):
+        self._preview_sound.set_selection(
+            self.combo_sound.currentData(),
+            self._custom_sound_path,
+        )
+        self._preview_sound.play()
+
+    # --- Discord Webhook ---
+    def _on_webhook_url_edited(self):
+        url = self.edit_webhook_url.text().strip()
+        self.edit_webhook_url.blockSignals(True)
+        self.edit_webhook_url.setText(url)
+        self.edit_webhook_url.blockSignals(False)
+        self.sig_setting_changed.emit("webhook_url", url)
+
+    def _toggle_webhook_visibility(self, shown: bool):
+        self.edit_webhook_url.setEchoMode(
+            QtWidgets.QLineEdit.Normal if shown else QtWidgets.QLineEdit.Password
+        )
+        self.btn_show_webhook.setText("Hide" if shown else "Show")
+
+    def _test_webhook(self):
+        url = self.edit_webhook_url.text().strip()
+        if not url:
+            self.set_webhook_status("Paste a Discord webhook URL first.", False)
+            return
+        self.sig_setting_changed.emit("webhook_url", url)
+        self.set_webhook_status("Sending test message to Discord…", None)
+        self.sig_test_webhook.emit(url, self.chk_ping_everyone.isChecked())
+
+    @QtCore.Slot(bool, str)
+    def set_webhook_test_result(self, ok: bool, message: str):
+        self.set_webhook_status(message, ok)
+
+    def set_webhook_status(self, message: str, ok=None):
+        color = "#94a3b8" if ok is None else ("#00ff88" if ok else "#ff6b6b")
+        self.lbl_webhook_status.setText(str(message or ""))
+        self.lbl_webhook_status.setStyleSheet(f"color: {color}; font-size: 10px;")
+        self.lbl_webhook_status.setVisible(bool(message))

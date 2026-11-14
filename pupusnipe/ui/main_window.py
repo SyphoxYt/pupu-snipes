@@ -6,7 +6,6 @@ Features animated tab transitions, pulsing status indicators, and responsive scr
 import os
 import sys
 import time
-import winsound
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from ..core.config import APP_NAME, APP_VERSION, AppConfig, DEFAULT_SOLS_RNG_PLACE_ID
@@ -18,6 +17,8 @@ from ..core.discord_monitor import DiscordMonitor
 from ..core.hotkeys import HotkeyManager
 from ..core.fishsol import FishSolEngine
 from ..core.log_watcher import RobloxLogWatcher
+from ..core.sounds import SoundManager
+from ..core.webhook import WebhookNotifier
 from ..core.logger import setup_logger, get_logger
 
 from .theme import DARK_THEME_QSS
@@ -49,6 +50,7 @@ class MainWindow(QtWidgets.QMainWindow):
     sig_hotkey_fish = QtCore.Signal()
     sig_hotkey_reset_cd = QtCore.Signal()
     sig_channel_resolved = QtCore.Signal(str, str, str, str)
+    sig_webhook_test_result = QtCore.Signal(bool, str)
 
     def __init__(self):
         super().__init__()
@@ -60,6 +62,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.config = AppConfig()
         self.storage = StorageManager()
         self._load_persisted_settings()
+
+        # Snipe sound + Discord webhook dispatchers
+        self.sound_manager = SoundManager(
+            preset_id=getattr(self.config, "sound_preset", "chime"),
+            custom_path=getattr(self.config, "custom_sound_path", ""),
+        )
+        self.webhook_notifier = WebhookNotifier()
 
         self.detector = LinkDetector(target_place_id=getattr(self.config, "place_id", DEFAULT_SOLS_RNG_PLACE_ID))
         self.detector.strict_place_id = bool(self.config.only_join_sols_links)
@@ -320,6 +329,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_misc.sig_blacklists_updated.connect(self.matcher.set_blacklists)
         self.tab_misc.sig_hotkeys_updated.connect(self._on_hotkeys_updated)
         self.tab_misc.sig_setting_changed.connect(self._on_config_changed)
+        self.tab_misc.sig_test_webhook.connect(self._on_test_webhook)
+        self.sig_webhook_test_result.connect(self.tab_misc.set_webhook_test_result)
         self.tab_stack.addWidget(self.tab_misc)
 
         # 6. Settings Tab
@@ -575,12 +586,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.fastest_latency = lat
                     self.tab_dashboard.card_fastest.set_value(f"{self.fastest_latency:.2f} ms")
 
-            # Audio alert
+            # Audio alert (bundled/custom sound; asynchronous, never blocks the UI)
             if self.config.play_sound:
-                try:
-                    winsound.MessageBeep(winsound.MB_ICONASTERISK)
-                except Exception:
-                    pass
+                self.sound_manager.play()
 
             # Desktop Notification
             if self.config.enable_notifications:
@@ -592,6 +600,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     f"Target: {event.get('profile_name')} in {lat:.2f}ms",
                     QtWidgets.QSystemTrayIcon.Information,
                     3000
+                )
+
+            # Discord webhook alert (daemon thread; UI never waits on Discord's API)
+            if getattr(self.config, "webhook_enabled", False) and getattr(self.config, "webhook_url", ""):
+                self.webhook_notifier.send_snipe_async(
+                    event=event,
+                    url=self.config.webhook_url,
+                    ping_everyone=bool(getattr(self.config, "webhook_ping_everyone", True)),
                 )
 
             # Biome Camping & Auto-Fishing Coordination (from FishSol v2.1)
@@ -646,6 +662,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_biome_changed(self, biome: str):
         self.current_biome = biome
         self.tab_dashboard.update_biome_display(self.current_biome, self.current_aura)
+
+        # Enrich the most recent webhook message with the confirmed in-game biome.
+        if getattr(self.config, "webhook_enabled", False):
+            self.webhook_notifier.update_biome_async(biome)
 
         current = biome.replace(" ", "").upper()
         target = (getattr(self, "active_camping_biome", "") or self.fishsol.camping_target_biome).replace(" ", "").upper()
@@ -840,6 +860,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.detector.snipe_fishstrap = bool(value)
             elif key == "snipe_joingate_links":
                 self.detector.snipe_joingate = bool(value)
+            elif key == "sound_preset":
+                self.sound_manager.set_selection(preset_id=str(value))
+            elif key == "custom_sound_path":
+                self.sound_manager.set_selection(custom_path=str(value))
+            elif key == "webhook_url":
+                clean_url = str(value or "").strip()
+                self.config.webhook_url = clean_url
+                self.storage.set_setting("webhook_url", clean_url)
             logger.info(f"Setting updated and saved to storage: {key} = {value}")
 
     def _on_fishing_config_changed(self, key: str, value):
@@ -883,6 +911,13 @@ class MainWindow(QtWidgets.QMainWindow):
             "Token saved! You can now click 'START SNIPING (F4)' on the Dashboard or Sniper tab to connect."
         )
 
+    def _on_test_webhook(self, url: str, ping_everyone: bool):
+        self.webhook_notifier.test_webhook_async(
+            url,
+            ping_everyone=ping_everyone,
+            on_result=lambda ok, message: self.sig_webhook_test_result.emit(bool(ok), str(message)),
+        )
+
     def resizeEvent(self, event: QtGui.QResizeEvent):
         super().resizeEvent(event)
         if not self.isMaximized():
@@ -897,5 +932,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.stop_sniper()
         self.fishsol.stop()
         self.log_watcher.stop()
+        self.sound_manager.stop()
         self.hotkeys.stop()
         super().closeEvent(event)

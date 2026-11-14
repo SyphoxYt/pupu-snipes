@@ -85,8 +85,15 @@ class AppConfig:
     duplicate_cooldown_sec: int = 180
     enable_notifications: bool = True
     play_sound: bool = True
+    sound_preset: str = "chime"  # Bundled snipe sound id (see core/sounds.py)
+    custom_sound_path: str = ""  # Optional user-selected .wav for the "custom" preset
     join_all_in_monitored_channels: bool = True  # Allows joining links in targeted channels without requiring keyword text
     ui_scale: float = 1.0
+
+    # Discord Webhook Alerts
+    webhook_enabled: bool = False
+    webhook_url: str = ""
+    webhook_ping_everyone: bool = True
     
     # Advanced Options (from Sol Sniper V3)
     close_roblox_before_joining: bool = False

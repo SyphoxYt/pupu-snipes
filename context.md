@@ -36,6 +36,8 @@ pupusnipes/
 │   │   ├── fishsol.py        # Native FishSol v2.1 automation (minigame bar tracker, selling path, equip sequence)
 │   │   ├── log_watcher.py    # Background RPC log tailer for Roblox, Voidstrap, and Bloxstrap
 │   │   ├── hotkeys.py        # Global keyboard hook listener (F4, F5, F6, F7, F8, F9)
+│   │   ├── sounds.py         # Bundled snipe sound library (11 synthesized WAV presets) + async playback
+│   │   ├── webhook.py        # Non-blocking Discord webhook alerts, rich embeds, biome message patching
 │   │   └── logger.py         # Thread-safe color-coded diagnostics logging engine
 │   ├── ui/
 │   │   ├── main_window.py    # Master window, sidebar navigation, animated fade transitions, status timers
@@ -47,11 +49,11 @@ pupusnipes/
 │   │       ├── fishing_tab.py    # FishSol controls, camping state, selling path tester, resolution presets
 │   │       ├── servers_tab.py    # Channel management, developer mode guide
 │   │       ├── keywords_tab.py   # Keyword profile editor, priority tuning, regex options
-│   │       ├── misc_tab.py       # Blacklists, anti-bait toggles, customizable hotkey inputs
+│   │       ├── misc_tab.py       # Blacklists, anti-bait toggles, hotkeys, snipe sounds, webhook settings
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
-│   ├── assets/               # Application icon (.ico) and gaming logo (.png)
+│   ├── assets/               # Application icon (.ico), gaming logo (.png), and bundled sounds/ (.wav)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 48 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 71 passing unit tests (channels, detector, launcher, matcher, storage, fishsol, sounds, webhook)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -195,6 +197,25 @@ To guarantee you join private servers **before other players and public bots**, 
   - Works inside raw content, embed descriptions/fields, Markdown links, and Discord component buttons.
 - **Config**: Added `snipe_joingate_links` (default `True`) and a **Snipe Join-Page Links** checkbox on the Sniper tab.
 - **Tests**: Added `test_join_gateway_link`, `test_join_gateway_link_in_discord_message`, and `test_direct_game_instance_links` to `tests/test_detector.py`. Total test suite is now **48 passing tests**.
+
+### Phase 12: Custom Snipe Sounds + Discord Webhook Alerts
+- **Customizable Snipe Sound Effects**:
+  - Added `pupusnipe/core/sounds.py`, a dependency-free synthesizer/playback engine. The 11 bundled presets are generated locally at 44.1 kHz / 16-bit mono and shipped in `pupusnipe/assets/sounds/`, so no copyrighted clips or extra packages are required.
+  - Presets: ✨ **Pupu Chime** (default), 💥 **Vine Boom**, 😐 **Bruh**, 📢 **Airhorn**, 🚨 **Among Us**, 💫 **Rizz**, 🎻 **Emotional Damage**, 🔧 **Metal Pipe**, 🙅 **Nope**, 🎻 **Sad Violin**, and 🪙 **Coin**.
+  - Added **Windows System Beep** and **Custom WAV file…** options. The file picker accepts `.wav`; the selection is validated and falls back to the system beep if the file is moved or deleted.
+  - Misc tab now has a sound dropdown, **📂 Browse…**, and **▶ Preview** controls. Playback uses `winsound` with `SND_ASYNC` so it never blocks the Qt event loop or the snipe pipeline.
+  - New persisted settings: `sound_preset` (default `"chime"`) and `custom_sound_path` (default `""`). The existing `play_sound` master toggle is preserved.
+- **Discord Webhook Alerts**:
+  - Added `pupusnipe/core/webhook.py` with `WebhookNotifier`. Alerts are dispatched on short-lived daemon threads and the Qt UI never waits on Discord's API.
+  - Triggers on every successful `JOINED` event when `webhook_enabled` is true and a valid `https://discord.com/api/webhooks/...` URL is configured.
+  - Sends a polished embed: **biome**, target profile, join latency, source server, source channel, message author, link code, and a clickable **Join Link** (`https://www.roblox.com/share?code=<link_code>&type=Server`). The embed title is linked to the server as well.
+  - Content pings `@everyone` when enabled. `allowed_mentions` is explicitly restricted to `["everyone"]` (or `[]` when the ping is disabled) to avoid accidental user/role pings.
+  - **Live Biome Correction**: the Roblox log watcher's confirmed biome is pushed into `WebhookNotifier.update_biome_async()`, which PATCHes the most recent webhook message within a 5-minute window. If the event already named the biome, no redundant edit is made. If the biome arrives while the initial POST is still in flight, it is queued and applied after the message ID is known.
+  - Added a **Discord Webhook Alerts** group in the Misc tab: enable toggle, masked webhook URL field with Show/Hide, **🚀 Send Test**, `@everyone` ping toggle, inline validation status, and a short explanatory hint.
+  - New persisted settings: `webhook_enabled` (default `False`), `webhook_url` (default `""`), and `webhook_ping_everyone` (default `True`).
+  - Invalid URLs are rejected locally (HTTPS + Discord host + `/api/webhooks/<id>/<token>` path) before any network request.
+- **Tests**: Added `tests/test_sounds.py` (WAV validity, bundled assets, deterministic synthesis, custom/missing file resolution, selection updates) and `tests/test_webhook.py` (URL validation, server share links, ping/no-ping payloads, embed fields, live-biome override, pending biome while in flight, PATCH behavior, and delivery bookkeeping). Total test suite is now **71 passing tests**.
+- **Packaging**: `build_exe.py` already bundles the entire `pupusnipe/assets` tree via `--add-data`, so the new `assets/sounds/*.wav` files are included automatically in the PyInstaller onedir distribution.
 
 ---
 
