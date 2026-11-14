@@ -388,7 +388,7 @@ All code, configurations, tests, and documentation are prepared for automatic pu
 1. Rebuild with `python build_exe.py` (creates `dist/PupuSnipe/PupuSnipe.exe`, deploys the root copy, AppData install, and shortcuts).
 2. Zip the onedir distribution:
    ```powershell
-   [System.IO.Compression.ZipFile]::CreateFromDirectory("dist\PupuSnipe", "dist\PupuSnipe-v1.0.0-win64.zip", "Optimal", $true)
+   [System.IO.Compression.ZipFile]::CreateFromDirectory("dist\PupuSnipe", "dist\PupuSnipe-v1.1.0-win64.zip", "Optimal", $true)
    ```
 3. Create the release and upload the asset via the GitHub REST API (token from `git credential fill`):
    - `POST https://api.github.com/repos/SyphoxYt/pupu-snipes/releases`

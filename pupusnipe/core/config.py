@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 import os
 
 APP_NAME = "PupuSnipe"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_DESCRIPTION = "High-performance Sol's RNG Private Server Sniper"
 
 # Primary Sol's RNG place ID
