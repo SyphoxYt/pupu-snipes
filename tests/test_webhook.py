@@ -85,6 +85,21 @@ class TestWebhookPayload(unittest.TestCase):
         self.assertIn("roblox.com/share", embed["description"])
         self.assertEqual(embed["timestamp"], "2025-11-15T09:46:40.250000Z")
 
+    def test_web_gateway_uses_protected_page_as_join_link(self):
+        url = (
+            "https://xe33hunt.com/j/"
+            "AaVtbe-dyiZRtlBWAFH4R5tzWaD6PXLG0Cwp7fNWwpgDd0EmQGoyl9mclSydP0502_neuQ"
+        )
+        event = dict(EVENT, protocol_url=url, link_code="AaVtbe-token")
+        embed = build_snipe_embed(event)
+        self.assertEqual(embed["url"], url)
+
+        fields = {field["name"]: field["value"] for field in embed["fields"]}
+        self.assertIn(url, fields["🔗 Join Link"])
+        self.assertIn("protected join page", fields["🔗 Join Link"].lower())
+        self.assertIn(url, embed["description"])
+        self.assertNotIn("roblox.com/share", embed["description"])
+
     def test_live_biome_overrides_target_profile(self):
         embed = build_snipe_embed(EVENT, biome="Dreamspace")
         fields = {field["name"]: field["value"] for field in embed["fields"]}

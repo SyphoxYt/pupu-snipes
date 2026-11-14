@@ -132,7 +132,9 @@ def build_snipe_embed(event: Dict[str, Any], biome: Optional[str] = None) -> Dic
     author_name = _trim(event.get("author_name"), 250, fallback="Unknown")
     link_code = _trim(event.get("link_code"), 80, fallback="")
     protocol_url = _trim(event.get("protocol_url"), 1000, fallback="")
-    join_link = build_server_link(link_code)
+    is_web_gateway = protocol_url.lower().startswith(("http://", "https://"))
+    join_link = protocol_url if is_web_gateway else build_server_link(link_code)
+    join_label = "Open the protected join page" if is_web_gateway else "Join the server now"
 
     if detected_biome:
         title = f"🎯 {detected_biome} — Server Sniped!"
@@ -143,7 +145,7 @@ def build_snipe_embed(event: Dict[str, Any], biome: Optional[str] = None) -> Dic
         "**PupuSnipe caught a fresh Sol's RNG private server.**",
     ]
     if join_link:
-        description_lines.append(f"🔗 [**Join the server now**]({join_link})")
+        description_lines.append(f"🔗 [**{join_label}**]({join_link})")
     elif protocol_url:
         description_lines.append(f"🔗 `{protocol_url}`")
     else:
@@ -161,7 +163,7 @@ def build_snipe_embed(event: Dict[str, Any], biome: Optional[str] = None) -> Dic
     if join_link:
         fields.append({
             "name": "🔗 Join Link",
-            "value": f"[Open the private server]({join_link})",
+            "value": f"[{join_label}]({join_link})",
             "inline": False,
         })
 

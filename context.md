@@ -53,7 +53,7 @@ pupusnipes/
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
 │   ├── assets/               # Application icon (.ico), gaming logo (.png), and bundled sounds/ (.wav)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 71 passing unit tests (channels, detector, launcher, matcher, storage, fishsol, sounds, webhook)
+├── tests/                    # 75 passing unit tests (channels, detector, launcher, matcher, storage, fishsol, sounds, webhook)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -216,6 +216,15 @@ To guarantee you join private servers **before other players and public bots**, 
   - Invalid URLs are rejected locally (HTTPS + Discord host + `/api/webhooks/<id>/<token>` path) before any network request.
 - **Tests**: Added `tests/test_sounds.py` (WAV validity, bundled assets, deterministic synthesis, custom/missing file resolution, selection updates) and `tests/test_webhook.py` (URL validation, server share links, ping/no-ping payloads, embed fields, live-biome override, pending biome while in flight, PATCH behavior, and delivery bookkeeping). Total test suite is now **71 passing tests**.
 - **Packaging**: `build_exe.py` already bundles the entire `pupusnipe/assets` tree via `--add-data`, so the new `assets/sounds/*.wav` files are included automatically in the PyInstaller onedir distribution.
+
+### Phase 13: Turnstile-Protected `xe33hunt.com/j/<token>` Join Pages
+- **Symptom**: After xe33Hunt switched from static GitHub Pages join links to `https://xe33hunt.com/j/<opaque-token>`, Dreamspace alerts stopped being detected entirely.
+- **Root Cause**: The new path has no UUID, query string, or Roblox URL embedded in its HTML. The page is a Cloudflare Turnstile challenge that only POSTs to the server after the browser proves it is human, then the server responds with the `roblox://` redirect. The token is opaque/encrypted (52 random bytes) and cannot be decoded offline.
+- **Detection**: Added `RE_XE33HUNT_GATEWAY` and a new `webgateway` link type to `detector.py`. It matches any `xe33hunt.com/j/<token>` URL, stores the full HTTPS URL in `protocol_url`, the opaque token in `link_code`, and the configured target place ID in `place_id`. It is gated by the existing `snipe_joingate` toggle, so no new config flag is required.
+- **Joining**: `launcher.py` now detects `http://`/`https://` protocol URLs and hands them to the default browser via `webbrowser.open()` with a Windows `ShellExecuteW` fallback. The page's Turnstile callback then auto-submits and joins the server. Non-browser clients are not attempted for these URLs.
+- **Webhook**: `webhook.py` uses the protected HTTPS page as the embed URL and **Join Link** for `webgateway` events instead of fabricating a `roblox.com/share` URL, with the label **Open the protected join page**.
+- **Tests**: Added `test_xe33hunt_turnstile_gateway_link` (exact URL, Dreamspace message, toggle-off), `test_web_gateway_launch_opens_default_browser` / `test_web_gateway_launch_reports_browser_failure`, and `test_web_gateway_uses_protected_page_as_join_link`. Total test suite is now **75 passing tests**.
+- **Limitation**: The Turnstile challenge cannot be solved headlessly; browser handoff is the practical auto-join path. The default browser must be signed into Roblox for the redirect to complete.
 
 ---
 
@@ -388,7 +397,7 @@ All code, configurations, tests, and documentation are prepared for automatic pu
 1. Rebuild with `python build_exe.py` (creates `dist/PupuSnipe/PupuSnipe.exe`, deploys the root copy, AppData install, and shortcuts).
 2. Zip the onedir distribution:
    ```powershell
-   [System.IO.Compression.ZipFile]::CreateFromDirectory("dist\PupuSnipe", "dist\PupuSnipe-v1.1.0-win64.zip", "Optimal", $true)
+   [System.IO.Compression.ZipFile]::CreateFromDirectory("dist\PupuSnipe", "dist\PupuSnipe-v1.1.1-win64.zip", "Optimal", $true)
    ```
 3. Create the release and upload the asset via the GitHub REST API (token from `git credential fill`):
    - `POST https://api.github.com/repos/SyphoxYt/pupu-snipes/releases`

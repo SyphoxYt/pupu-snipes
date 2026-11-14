@@ -9,6 +9,7 @@ import time
 import ctypes
 import threading
 import subprocess
+import webbrowser
 from typing import Optional, Dict, Any, Tuple
 from collections import OrderedDict
 from .logger import get_logger
@@ -314,6 +315,33 @@ class RobloxLauncher:
             return False
 
     @staticmethod
+    def _open_web_join_gateway(url: str) -> bool:
+        """
+        Opens Turnstile-protected join pages in the user's default browser.
+        These pages intentionally hide the Roblox URL until Cloudflare verifies
+        the browser, then submit directly to roblox:// and join the server.
+        """
+        try:
+            if webbrowser.open(url, new=2):
+                logger.info(f"Opened protected join page in default browser: {url}")
+                return True
+        except Exception as ex:
+            logger.warning(f"Default browser could not open join page: {ex}")
+
+        try:
+            if sys.platform == "win32":
+                result = ctypes.windll.shell32.ShellExecuteW(None, "open", url, None, None, 1)
+                if result > 32:
+                    logger.info(f"Opened protected join page via Windows shell: {url}")
+                    return True
+            else:
+                os.startfile(url)
+                return True
+        except Exception as ex:
+            logger.warning(f"Could not open protected join page: {ex}")
+        return False
+
+    @staticmethod
     def _win32_fast_spawn(exe_path: str, protocol_url: str) -> bool:
         """
         Pure Win32 CreateProcessW invocation (<0.005ms).
@@ -420,11 +448,19 @@ class RobloxLauncher:
         if minimize_other:
             self.minimize_other_windows()
 
+        is_web_gateway = protocol_url.lower().startswith(("http://", "https://"))
+
         try:
             launched_successfully = False
 
+            # 0. Turnstile-protected join page: hand off to the default browser.
+            if is_web_gateway:
+                launched_successfully = self._open_web_join_gateway(protocol_url)
+                if not launched_successfully:
+                    raise RuntimeError("Could not open the protected join page in a browser")
+
             # 1. User Choice: Voidstrap
-            if client == "voidstrap":
+            elif client == "voidstrap":
                 boot = self.find_bootstrapper_executable()
                 if boot:
                     subprocess.Popen(

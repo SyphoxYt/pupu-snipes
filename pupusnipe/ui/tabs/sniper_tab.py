@@ -347,7 +347,7 @@ class SniperTab(QtWidgets.QWidget):
         self.chk_fishstrap.toggled.connect(lambda v: self.sig_setting_changed.emit("snipe_fishstrap_links", v))
         links_layout.addWidget(self.chk_fishstrap)
 
-        self.chk_joingate = QtWidgets.QCheckBox("Snipe Join-Page Links (xe33cc.github.io/join, *.github.io/join, ?s=UUID)")
+        self.chk_joingate = QtWidgets.QCheckBox("Snipe Join-Page Links (xe33cc.github.io/join, xe33hunt.com/j, ?s=UUID)")
         self.chk_joingate.setChecked(True)
         self.chk_joingate.toggled.connect(lambda v: self.sig_setting_changed.emit("snipe_joingate_links", v))
         links_layout.addWidget(self.chk_joingate)

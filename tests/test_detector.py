@@ -301,6 +301,36 @@ class TestLinkDetector(unittest.TestCase):
         self.assertEqual(link.link_code, "9de406b3-cb36-4c4b-ae90-a1f2678dda26")
         self.assertIn("Glitched", combined_text)
 
+    def test_xe33hunt_turnstile_gateway_link(self):
+        # Turnstile-protected page: the opaque token cannot be resolved offline,
+        # so it must be launched in the browser instead of converted to roblox://
+        token = (
+            "AaVtbe-dyiZRtlBWAFH4R5tzWaD6PXLG0Cwp7fNWwpgDd0EmQGoyl9mclSydP0502_neuQ"
+        )
+        sample = f"https://xe33hunt.com/j/{token}"
+        link = self.detector.extract_from_text(sample)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertFalse(link.is_phishing)
+        self.assertEqual(link.link_type, "webgateway")
+        self.assertEqual(link.link_code, token)
+        self.assertEqual(link.protocol_url, sample)
+        self.assertEqual(link.place_id, self.detector.target_place_id)
+
+        # Embedded inside a Dreamspace alert
+        content = f"Dreamspace spawned! Join fast: {sample}"
+        link_msg, combined_text = self.detector.extract_from_message(content=content)
+        self.assertIsNotNone(link_msg)
+        self.assertTrue(link_msg.is_valid)
+        self.assertEqual(link_msg.link_type, "webgateway")
+        self.assertEqual(link_msg.link_code, token)
+        self.assertIn("Dreamspace", combined_text)
+
+        # Feature toggle disables detection
+        self.detector.snipe_joingate = False
+        self.assertIsNone(self.detector.extract_from_text(sample))
+        self.detector.snipe_joingate = True
+
     def test_direct_game_instance_links(self):
         # Native protocol form emitted by the join-gateway page
         proto = (

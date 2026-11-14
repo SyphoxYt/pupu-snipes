@@ -16,7 +16,7 @@ from .config import (
 # Link types that resolve to an actual Roblox game/server join
 GAME_LINK_TYPES = (
     "share", "protocol", "standard", "deeplink", "gameinstance",
-    "ropro", "joinrbx", "roseal", "fishstrap", "joingate"
+    "ropro", "joinrbx", "roseal", "fishstrap", "joingate", "webgateway"
 )
 
 # UUID (8-4-4-4-12 hex) used as gameInstanceId by join-gateway pages
@@ -116,6 +116,14 @@ RE_JOIN_GATEWAY_QUERY = re.compile(
 # Path form: /join/<UUID>
 RE_JOIN_GATEWAY_PATH = re.compile(
     r'https?://[a-zA-Z0-9_\-\.]+(?::\d+)?/join/(' + RE_UUID + r')(?![0-9a-zA-Z\-])',
+    re.IGNORECASE
+)
+
+# Turnstile-protected join pages (e.g. https://xe33hunt.com/j/<opaque-token>).
+# These cannot be resolved offline; PupuSnipe opens the page in the default browser
+# and the page's Cloudflare callback forwards the user into Roblox automatically.
+RE_XE33HUNT_GATEWAY = re.compile(
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*xe33hunt\.com/j/([a-zA-Z0-9_\-]{10,200})',
     re.IGNORECASE
 )
 
@@ -659,6 +667,21 @@ class LinkDetector:
 
         # 8. Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
         if self.snipe_joingate:
+            # 8a. Turnstile-protected xe33Hunt page: launch the page in the default
+            # browser. The page forwards to roblox:// after Cloudflare verification.
+            xe33_match = RE_XE33HUNT_GATEWAY.search(clean_text)
+            if xe33_match:
+                token = xe33_match.group(1)
+                return ExtractedLink(
+                    raw_url=xe33_match.group(0),
+                    place_id=self.target_place_id,
+                    link_code=token,
+                    protocol_url=xe33_match.group(0),
+                    is_valid=True,
+                    link_type="webgateway"
+                )
+
+            # 8b. Static GitHub Pages join gateway: resolved offline to gameInstanceId.
             gateway_match = RE_JOIN_GATEWAY_QUERY.search(clean_text)
             if not gateway_match:
                 gateway_match = RE_JOIN_GATEWAY_PATH.search(clean_text)

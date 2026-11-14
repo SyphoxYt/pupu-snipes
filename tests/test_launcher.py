@@ -3,6 +3,9 @@ Unit tests for Roblox Launcher with Voidstrap / Bloxstrap detection.
 """
 import unittest
 import os
+from unittest.mock import patch
+
+from pupusnipe.core import launcher as launcher_module
 from pupusnipe.core.launcher import RobloxLauncher
 
 
@@ -28,6 +31,34 @@ class TestRobloxLauncher(unittest.TestCase):
             ignore_cooldown=True
         )
         self.assertNotEqual(res.error_message, f"Duplicate link ignored (Cooldown active for {link[:8]}...)")
+
+    def test_web_gateway_launch_opens_default_browser(self):
+        url = "https://xe33hunt.com/j/AaVtbe-dyiZRtlBWAFH4R5tzWaD6PXLG0Cwp7fNWwpgDd0EmQGoyl9mclSydP0502_neuQ"
+        with patch.object(self.launcher, "is_roblox_running", return_value=False), \
+                patch.object(launcher_module.webbrowser, "open", return_value=True) as browser_open:
+            result = self.launcher.launch(
+                protocol_url=url,
+                link_code="AaVtbe-test-token",
+                ignore_cooldown=True,
+            )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.protocol_url, url)
+        browser_open.assert_called_once()
+        self.assertEqual(browser_open.call_args.args[0], url)
+
+    def test_web_gateway_launch_reports_browser_failure(self):
+        url = "https://xe33hunt.com/j/AaVtbe-test-token"
+        with patch.object(self.launcher, "is_roblox_running", return_value=False), \
+                patch.object(self.launcher, "_open_web_join_gateway", return_value=False):
+            result = self.launcher.launch(
+                protocol_url=url,
+                link_code="AaVtbe-test-token-2",
+                ignore_cooldown=True,
+            )
+
+        self.assertFalse(result.success)
+        self.assertIn("protected join page", result.error_message)
 
     def test_roblox_discovery(self):
         exe = self.launcher.find_roblox_executable(force_vanilla=True)
