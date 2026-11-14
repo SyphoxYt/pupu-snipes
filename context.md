@@ -360,7 +360,7 @@ To guarantee you join private servers **before other players and public bots**, 
   4. Added `self._resolved_channels` cache in `DiscordMonitor` so channels are only resolved once, avoiding database and signal churn during high-frequency message processing.
   5. Added unit test `test_servers_tab_update_channel_info_no_loop` in `tests/test_channels.py`.
 
-### Phase 14: Discord Webhook Overhaul, Biome Image Forwarding, Engine Lifecycle Alerts & Test Button Fix (v1.1.1)
+### Phase 14: Discord Webhook Overhaul, Biome Image Forwarding, Engine Lifecycle Alerts & Test Button Fix (v1.1.3)
 
 1. **Webhook Test Button Hanging Bug Fix (`pupusnipe/ui/tabs/misc_tab.py`)**:
    - **Root Cause**: `QtCore.QMetaObject.invokeMethod(self, "_run_in_main", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(object, _update_ui))` fails silently in PySide6 because raw Python callback closures are not registered C++ Qt meta-types across thread boundaries. As a result, `_update_ui` never ran, leaving the button disabled and permanently stuck on `"Sending test ping..."`.
