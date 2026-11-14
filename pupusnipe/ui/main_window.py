@@ -19,6 +19,8 @@ from ..core.hotkeys import HotkeyManager
 from ..core.fishsol import FishSolEngine
 from ..core.log_watcher import RobloxLogWatcher
 from ..core.logger import setup_logger, get_logger
+from ..core.audio import play_sound
+from ..core.webhook import send_snipe_webhook_async
 
 from .theme import DARK_THEME_QSS
 from .tabs.dashboard_tab import DashboardTab
@@ -575,12 +577,18 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.fastest_latency = lat
                     self.tab_dashboard.card_fastest.set_value(f"{self.fastest_latency:.2f} ms")
 
-            # Audio alert
+            # Audio alert (Customizable Sound Effects & Memes)
             if self.config.play_sound:
                 try:
-                    winsound.MessageBeep(winsound.MB_ICONASTERISK)
+                    sfx = getattr(self.config, "sound_effect", "vine_boom")
+                    custom_p = getattr(self.config, "sound_custom_path", "")
+                    vol = getattr(self.config, "sound_volume", 100)
+                    play_sound(sfx, custom_p, vol)
                 except Exception:
-                    pass
+                    try:
+                        winsound.MessageBeep(winsound.MB_ICONASTERISK)
+                    except Exception:
+                        pass
 
             # Desktop Notification
             if self.config.enable_notifications:
@@ -593,6 +601,17 @@ class MainWindow(QtWidgets.QMainWindow):
                     QtWidgets.QSystemTrayIcon.Information,
                     3000
                 )
+
+            # Discord Webhook Notification (Rich Embed with Biome styling & Join links)
+            if getattr(self.config, "webhook_enabled", False) and getattr(self.config, "webhook_url", ""):
+                try:
+                    send_snipe_webhook_async(
+                        webhook_url=self.config.webhook_url,
+                        event=event,
+                        ping_everyone=getattr(self.config, "webhook_ping_everyone", True)
+                    )
+                except Exception as ex:
+                    logger.debug(f"[Webhook] Dispatch error: {ex}")
 
             # Biome Camping & Auto-Fishing Coordination (from FishSol v2.1)
             prof_name = str(event.get("profile_name", "")).strip()

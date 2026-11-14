@@ -36,6 +36,8 @@ pupusnipes/
 │   │   ├── fishsol.py        # Native FishSol v2.1 automation (minigame bar tracker, selling path, equip sequence)
 │   │   ├── log_watcher.py    # Background RPC log tailer for Roblox, Voidstrap, and Bloxstrap
 │   │   ├── hotkeys.py        # Global keyboard hook listener (F4, F5, F6, F7, F8, F9)
+│   │   ├── audio.py          # Native Windows MCI & Winsound player for custom & meme sound effects
+│   │   ├── webhook.py        # Discord Webhook rich embed notification dispatcher with biome colors
 │   │   └── logger.py         # Thread-safe color-coded diagnostics logging engine
 │   ├── ui/
 │   │   ├── main_window.py    # Master window, sidebar navigation, animated fade transitions, status timers
@@ -47,11 +49,12 @@ pupusnipes/
 │   │       ├── fishing_tab.py    # FishSol controls, camping state, selling path tester, resolution presets
 │   │       ├── servers_tab.py    # Channel management, developer mode guide
 │   │       ├── keywords_tab.py   # Keyword profile editor, priority tuning, regex options
-│   │       ├── misc_tab.py       # Blacklists, anti-bait toggles, customizable hotkey inputs
+│   │       ├── misc_tab.py       # Blacklists, anti-bait toggles, customizable hotkey inputs, audio sfx & webhooks
 │   │       └── settings_tab.py   # Token backend status, diagnostics console, log exports
-│   ├── assets/               # Application icon (.ico) and gaming logo (.png)
+│   ├── assets/               # Application icon (.ico), gaming logo (.png), and sound effects (.mp3)
+│   │   └── sounds/           # Bundled meme & game sfx (vine boom, metal pipe, taco bell, oof, anime wow, etc.)
 │   └── rthook_lazy_imports.py# PyInstaller runtime hook fixing Python 3.15 lazy imports
-├── tests/                    # 48 passing unit tests (channels, detector, launcher, matcher, storage, fishsol)
+├── tests/                    # 53 passing unit tests (audio, webhook, channels, detector, launcher, matcher, storage, fishsol)
 ├── main.py                   # Desktop application entry point with High-DPI PassThrough
 ├── build_exe.py              # Standalone PyInstaller onedir distribution builder
 ├── create_installer.py       # Windows Desktop and Start Menu shortcut installer
@@ -195,6 +198,33 @@ To guarantee you join private servers **before other players and public bots**, 
   - Works inside raw content, embed descriptions/fields, Markdown links, and Discord component buttons.
 - **Config**: Added `snipe_joingate_links` (default `True`) and a **Snipe Join-Page Links** checkbox on the Sniper tab.
 - **Tests**: Added `test_join_gateway_link`, `test_join_gateway_link_in_discord_message`, and `test_direct_game_instance_links` to `tests/test_detector.py`. Total test suite is now **48 passing tests**.
+
+### Phase 12: Customizable Sound Effects (Memes) & Discord Webhook Integration
+- **Customizable Sound Effects & Meme Audio Suite**:
+  - Bundled a curated library of high-impact game and meme sound effects in `pupusnipe/assets/sounds/`:
+    - `vine_boom.mp3` (Vine Boom)
+    - `metal_pipe.mp3` (Metal Pipe Falling)
+    - `taco_bell.mp3` (Taco Bell Bong)
+    - `bruh.mp3` (Bruh)
+    - `roblox_oof.mp3` (Classic Vintage Roblox Oof)
+    - `anime_wow.mp3` (Anime Wow!)
+    - `mlg_airhorn.mp3` (MLG Airhorn)
+    - `discord_ping.mp3` (Discord Notification Chime)
+    - `windows_error.mp3` (Windows XP Error)
+    - `bonk.mp3` (Bonk / Bat sound)
+    - `among_us.mp3` (Among Us Role / Kill sound)
+    - `default` (Windows Default Chime)
+    - `custom` (User-selected `.mp3` or `.wav` file with local file browser)
+  - Engineered `pupusnipe/core/audio.py` using Windows native Media Control Interface (`mciSendStringW` in `winmm.dll`) and `winsound` fallback. Plays asynchronously in a background thread with zero UI lag and configurable volume (0-100%).
+  - Added UI controls on the **Misc** tab: Sound selector dropdown, volume slider, custom file browser, and **🔊 Test Sound** button.
+- **Rich Discord Webhook Notifications**:
+  - Engineered `pupusnipe/core/webhook.py` to dispatch embeds to user Discord channels whenever a server is sniped:
+    - **Dynamic Biome Color Styling**: Embed color automatically matches the sniped Sol's RNG biome (Dreamspace `#ff70a6`, Glitched `#a855f7`, Cyberspace `#00f0ff`, Singularity `#6366f1`, Corruption `#9333ea`, Starfall `#38bdf8`, Sandstorm `#f59e0b`, Hell `#ef4444`, Jester `#eab308`, Mari `#10b981`, etc.).
+    - **Rich Fields**: Biome with emoji, detection-to-launch latency (ms), source server/channel, server link code, direct clickable `roblox://` protocol join link, and clickable `roblox.com` web browser fallback link.
+    - **Pings**: Configurable `@everyone` ping (`webhook_ping_everyone = True`).
+    - **Zero-Latency Execution**: Webhooks are dispatched in a dedicated daemon thread (`send_snipe_webhook_async`), guaranteeing 0ms impact on the main Roblox join pipeline.
+    - **Connectivity Testing**: Added **🧪 Test Webhook** button on the Misc tab verifying the webhook with real-time success/error status badges.
+- **Tests**: Created `tests/test_audio_webhook.py` testing sound resolution, biome color mapping, web URL derivation, and embed payload formatting. Total test suite increased to **53 passing tests**.
 
 ---
 

@@ -85,6 +85,14 @@ class AppConfig:
     duplicate_cooldown_sec: int = 180
     enable_notifications: bool = True
     play_sound: bool = True
+    sound_effect: str = "vine_boom"  # "vine_boom", "metal_pipe", "taco_bell", "bruh", "roblox_oof", etc.
+    sound_custom_path: str = ""
+    sound_volume: int = 100
+    
+    # Discord Webhooks
+    webhook_enabled: bool = False
+    webhook_url: str = ""
+    webhook_ping_everyone: bool = True
     join_all_in_monitored_channels: bool = True  # Allows joining links in targeted channels without requiring keyword text
     ui_scale: float = 1.0
     
