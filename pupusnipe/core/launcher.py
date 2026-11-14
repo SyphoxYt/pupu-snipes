@@ -12,6 +12,7 @@ import subprocess
 import webbrowser
 from typing import Optional, Dict, Any, Tuple
 from collections import OrderedDict
+from .browsers import find_browser_executable
 from .logger import get_logger
 
 logger = get_logger()
@@ -104,6 +105,9 @@ class RobloxLauncher:
         self._lock = threading.Lock()
         self._cached_exe_path: Optional[str] = None
         self._last_exe_scan: float = 0.0
+        # Browser used for Turnstile-protected join pages (xe33hunt).
+        self.gateway_browser: str = "default"
+        self.gateway_browser_path: str = ""
 
     def get_cooldown_remaining(self) -> float:
         """Returns remaining seconds for the 10-minute global join cooldown, or 0.0 if ready."""
@@ -314,13 +318,32 @@ class RobloxLauncher:
         except Exception:
             return False
 
-    @staticmethod
-    def _open_web_join_gateway(url: str) -> bool:
+    def _resolve_gateway_browser_path(self) -> Optional[str]:
+        """Returns the selected browser executable, or None for the OS default."""
+        return find_browser_executable(self.gateway_browser, self.gateway_browser_path)
+
+    def _open_web_join_gateway(self, url: str) -> bool:
         """
-        Opens Turnstile-protected join pages in the user's default browser.
+        Opens Turnstile-protected join pages in a real browser.
         These pages intentionally hide the Roblox URL until Cloudflare verifies
         the browser, then submit directly to roblox:// and join the server.
+
+        If a specific browser is selected, it is launched directly so the page
+        reuses that browser's profile, cookies, and Roblox session.
         """
+        browser_path = self._resolve_gateway_browser_path()
+        if browser_path:
+            try:
+                subprocess.Popen(
+                    [browser_path, url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                logger.info(f"Opened protected join page in {self.gateway_browser}: {url}")
+                return True
+            except Exception as ex:
+                logger.warning(f"Selected browser could not open join page: {ex}")
+
         try:
             if webbrowser.open(url, new=2):
                 logger.info(f"Opened protected join page in default browser: {url}")
@@ -340,6 +363,104 @@ class RobloxLauncher:
         except Exception as ex:
             logger.warning(f"Could not open protected join page: {ex}")
         return False
+
+    def resolve_and_launch_web_gateway(
+        self,
+        gateway_url: str,
+        link_code: str,
+        method: str = "protocol",
+        client: str = "voidstrap",
+        recv_time: Optional[float] = None,
+        extract_time: Optional[float] = None,
+        match_time: Optional[float] = None,
+        close_roblox_before: bool = False,
+        leave_game_before: bool = False,
+        minimize_other: bool = False,
+        timeout: float = 20.0,
+    ) -> Tuple[LaunchResult, Any]:
+        """
+        Resolves a Turnstile-protected join page into a native ``roblox://`` URL
+        and dispatches it through the normal launcher.
+
+        The browser work is intentionally kept out of the Discord event loop: the
+        caller should run this method on a background thread. If Cloudflare cannot
+        be satisfied automatically, the page is opened visibly so the user can
+        finish the verification manually.
+        """
+        from .gateway_resolver import resolve_gateway_url
+
+        t_resolve_start = time.time()
+        resolution = resolve_gateway_url(
+            gateway_url,
+            browser_id=self.gateway_browser,
+            custom_path=self.gateway_browser_path,
+            timeout=timeout,
+        )
+        resolve_ms = (time.time() - t_resolve_start) * 1000.0
+
+        if resolution.status == "resolved" and resolution.roblox_url:
+            result = self.launch(
+                protocol_url=resolution.roblox_url,
+                link_code=link_code,
+                method=method,
+                client=client,
+                recv_time=recv_time,
+                extract_time=extract_time,
+                match_time=match_time,
+                close_roblox_before=close_roblox_before,
+                leave_game_before=leave_game_before,
+                minimize_other=minimize_other,
+            )
+            result.breakdown["resolve_ms"] = resolve_ms
+            return result, resolution
+
+        if resolution.status in ("expired", "not_found"):
+            # The link is dead; do not open a browser. Remember it so repeated
+            # Discord messages do not spawn the browser again.
+            self.record_join(link_code)
+            t_failed = time.time()
+            t_recv = recv_time or t_resolve_start
+            latency_ms = (t_failed - t_recv) * 1000.0
+            return LaunchResult(
+                success=False,
+                protocol_url=gateway_url,
+                launch_method="gateway_resolver",
+                roblox_running_before=False,
+                latency_ms=latency_ms,
+                timestamps={
+                    "received": t_recv,
+                    "resolved": t_failed,
+                    "failed": t_failed,
+                },
+                breakdown={
+                    "extract_ms": (extract_time - t_recv) * 1000.0 if extract_time else 0.0,
+                    "match_ms": (match_time - extract_time) * 1000.0 if extract_time and match_time else 0.0,
+                    "resolve_ms": resolve_ms,
+                    "total_ms": latency_ms,
+                },
+                error_message=resolution.message or resolution.status,
+            ), resolution
+
+        # timeout / challenge_failed / unsupported / error: fall back to a
+        # visible browser so the user can finish the Cloudflare check.
+        logger.warning(
+            f"[GatewayResolver] Falling back to the browser: {resolution.status}"
+            + (f" ({resolution.message})" if resolution.message else "")
+        )
+        result = self.launch(
+            protocol_url=gateway_url,
+            link_code=link_code,
+            method=method,
+            client=client,
+            recv_time=recv_time,
+            extract_time=extract_time,
+            match_time=match_time,
+            close_roblox_before=close_roblox_before,
+            leave_game_before=leave_game_before,
+            minimize_other=minimize_other,
+        )
+        result.breakdown["resolve_ms"] = resolve_ms
+        return result, resolution
 
     @staticmethod
     def _win32_fast_spawn(exe_path: str, protocol_url: str) -> bool:

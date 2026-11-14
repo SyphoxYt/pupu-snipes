@@ -348,6 +348,9 @@ class DashboardTab(QtWidgets.QWidget):
             "DETECTED": "#38bdf8",
             "BLOCKED": "#f43f5e",
             "DUPLICATE": "#94a3b8",
+            "EXPIRED": "#fbbf24",
+            "NOT_FOUND": "#fbbf24",
+            "COOLDOWN": "#fbbf24",
             "ERROR": "#f43f5e"
         }
         color_hex = status_colors.get(status, "#e2e8f0")

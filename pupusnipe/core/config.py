@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 import os
 
 APP_NAME = "PupuSnipe"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 APP_DESCRIPTION = "High-performance Sol's RNG Private Server Sniper"
 
 # Primary Sol's RNG place ID
@@ -108,6 +108,15 @@ class AppConfig:
     snipe_roseal_links: bool = True
     snipe_fishstrap_links: bool = True
     snipe_joingate_links: bool = True
+
+    # Browser used for Turnstile-protected join pages (xe33hunt)
+    gateway_browser: str = "default"  # default, brave, chrome, edge, firefox, custom
+    gateway_browser_path: str = ""  # Custom browser executable
+
+    # Try to resolve protected pages off-screen and dispatch the captured
+    # roblox:// URL through the native launcher. Falls back to opening the
+    # selected browser when Cloudflare cannot be satisfied automatically.
+    gateway_resolver_enabled: bool = True
     
     # Hotkeys
     hotkey_toggle: str = "F4"

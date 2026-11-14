@@ -39,13 +39,109 @@ class TestRobloxLauncher(unittest.TestCase):
             result = self.launcher.launch(
                 protocol_url=url,
                 link_code="AaVtbe-test-token",
-                ignore_cooldown=True,
             )
 
         self.assertTrue(result.success)
         self.assertEqual(result.protocol_url, url)
         browser_open.assert_called_once()
         self.assertEqual(browser_open.call_args.args[0], url)
+
+    def test_web_gateway_uses_selected_browser(self):
+        url = "https://xe33hunt.com/j/AaVtbe-test-token"
+        fake_browser = r"C:\Fake\brave.exe"
+        self.launcher.gateway_browser = "brave"
+        with patch.object(self.launcher, "is_roblox_running", return_value=False), \
+                patch.object(self.launcher, "_resolve_gateway_browser_path", return_value=fake_browser), \
+                patch.object(launcher_module.subprocess, "Popen") as popen, \
+                patch.object(launcher_module.webbrowser, "open") as browser_open:
+            result = self.launcher.launch(
+                protocol_url=url,
+                link_code="AaVtbe-test-token-3",
+            )
+
+        self.assertTrue(result.success)
+        popen.assert_called_once()
+        self.assertEqual(popen.call_args.args[0], [fake_browser, url])
+        browser_open.assert_not_called()
+
+    def test_web_gateway_falls_back_when_selected_browser_missing(self):
+        url = "https://xe33hunt.com/j/AaVtbe-test-token"
+        self.launcher.gateway_browser = "custom"
+        self.launcher.gateway_browser_path = r"C:\Missing\browser.exe"
+        with patch.object(self.launcher, "is_roblox_running", return_value=False), \
+                patch.object(self.launcher, "_resolve_gateway_browser_path", return_value=None), \
+                patch.object(launcher_module.webbrowser, "open", return_value=True) as browser_open:
+            result = self.launcher.launch(
+                protocol_url=url,
+                link_code="AaVtbe-test-token-4",
+            )
+
+        self.assertTrue(result.success)
+        browser_open.assert_called_once()
+
+    def test_resolve_and_launch_native_on_success(self):
+        from pupusnipe.core.gateway_resolver import ResolveResult
+        url = "https://xe33hunt.com/j/token"
+        resolved = "roblox://experiences/start?placeId=1&gameInstanceId=abc"
+        self.launcher.gateway_browser = "brave"
+        with patch(
+            "pupusnipe.core.gateway_resolver.resolve_gateway_url",
+            return_value=ResolveResult("resolved", roblox_url=resolved, message="ok"),
+        ) as resolver, patch.object(
+            self.launcher, "is_roblox_running", return_value=False
+        ), patch.object(self.launcher, "_resolve_gateway_browser_path", return_value=None), patch(
+            "pupusnipe.core.launcher.subprocess.Popen"
+        ) as popen:
+            result, resolution = self.launcher.resolve_and_launch_web_gateway(
+                gateway_url=url,
+                link_code="token",
+            )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.protocol_url, resolved)
+        resolver.assert_called_once()
+        # Native path: no browser subprocess for the protected page.
+        for call in popen.call_args_list:
+            self.assertNotEqual(call.args[0][1] if len(call.args[0]) > 1 else None, url)
+
+    def test_resolve_and_launch_expired_does_not_open_browser(self):
+        from pupusnipe.core.gateway_resolver import ResolveResult
+        url = "https://xe33hunt.com/j/expired"
+        with patch(
+            "pupusnipe.core.gateway_resolver.resolve_gateway_url",
+            return_value=ResolveResult("expired", message="gone"),
+        ), patch.object(self.launcher, "is_roblox_running", return_value=False), patch(
+            "pupusnipe.core.launcher.webbrowser.open"
+        ) as browser_open:
+            result, resolution = self.launcher.resolve_and_launch_web_gateway(
+                gateway_url=url,
+                link_code="expired-token",
+            )
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.protocol_url, url)
+        self.assertIn("gone", result.error_message)
+        browser_open.assert_not_called()
+
+    def test_resolve_and_launch_falls_back_to_browser_on_timeout(self):
+        from pupusnipe.core.gateway_resolver import ResolveResult
+        url = "https://xe33hunt.com/j/timeout"
+        with patch(
+            "pupusnipe.core.gateway_resolver.resolve_gateway_url",
+            return_value=ResolveResult("timeout", message="slow"),
+        ), patch.object(self.launcher, "is_roblox_running", return_value=False), patch.object(
+            self.launcher, "_resolve_gateway_browser_path", return_value=None
+        ), patch(
+            "pupusnipe.core.launcher.webbrowser.open", return_value=True
+        ) as browser_open:
+            result, resolution = self.launcher.resolve_and_launch_web_gateway(
+                gateway_url=url,
+                link_code="timeout-token",
+            )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.protocol_url, url)
+        browser_open.assert_called_once()
 
     def test_web_gateway_launch_reports_browser_failure(self):
         url = "https://xe33hunt.com/j/AaVtbe-test-token"

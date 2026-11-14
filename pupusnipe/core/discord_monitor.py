@@ -69,6 +69,11 @@ class DiscordMonitor:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._client: Optional[discord.Client] = None
 
+        # Turnstile-protected gateway resolution state. Only one browser profile
+        # can be used at a time, so resolution attempts are serialized.
+        self._gateway_lock = threading.Lock()
+        self._gateway_active_link: Optional[str] = None
+
     def set_monitored_channels(self, channel_ids: List[str]):
         """Updates the set of monitored channel IDs dynamically without restarting."""
         new_set = {str(cid).strip() for cid in channel_ids if str(cid).strip()}
@@ -503,6 +508,52 @@ class DiscordMonitor:
             )
             return
 
+        # Step 3.5: Turnstile-protected join page (xe33hunt)
+        #
+        # These pages hide the real Roblox URL behind Cloudflare. Resolve them in
+        # an off-screen Chromium browser on a background thread, then hand the
+        # captured roblox:// URL to the same native launcher used for every other
+        # link. Never run this on Discord's event loop.
+        if (
+            extracted_link.link_type == "webgateway"
+            and getattr(self.config, "auto_join", True)
+            and getattr(self.config, "gateway_resolver_enabled", True)
+        ):
+            snapshot = {
+                "server_name": message.guild.name if message.guild else "DM",
+                "channel_name": message.channel.name if hasattr(message.channel, "name") else "Direct",
+                "author_name": str(message.author),
+                "profile_name": match.profile.name if match.profile else "Match",
+                "keyword": match.matched_keyword or "",
+                "link_code": extracted_link.link_code,
+                "gateway_url": extracted_link.protocol_url,
+            }
+            if self._begin_gateway_resolution(extracted_link.link_code):
+                logger.info(
+                    f"[GatewayResolver] Protected link detected from {snapshot['author_name']} "
+                    f"in #{snapshot['channel_name']}. Resolving off-screen..."
+                )
+                threading.Thread(
+                    target=self._resolve_web_gateway_worker,
+                    args=(
+                        snapshot,
+                        match,
+                        t_recv,
+                        t_extracted,
+                        t_matched,
+                        extract_latency_ms,
+                        match_latency_ms,
+                    ),
+                    daemon=True,
+                    name="PupuSnipeGatewayResolver",
+                ).start()
+            else:
+                logger.info(
+                    "[GatewayResolver] Another protected link is already resolving; "
+                    f"skipping {extracted_link.link_code[:8]}..."
+                )
+            return
+
         # Step 4: Instant Launch Initiation
         launch_result: Optional[LaunchResult] = None
         if self.config.auto_join:
@@ -570,6 +621,148 @@ class DiscordMonitor:
             error_reason=err_str,
             timestamps=launch_result.timestamps if launch_result else {"received": t_recv}
         )
+
+    def _begin_gateway_resolution(self, link_code: str) -> bool:
+        """Claims the single off-screen browser slot for a protected link."""
+        with self._gateway_lock:
+            if self._gateway_active_link is not None:
+                return False
+            self._gateway_active_link = link_code
+            return True
+
+    def _end_gateway_resolution(self):
+        with self._gateway_lock:
+            self._gateway_active_link = None
+
+    def _resolve_web_gateway_worker(
+        self,
+        snapshot: Dict[str, str],
+        match: MatchResult,
+        t_recv: float,
+        t_extracted: float,
+        t_matched: float,
+        extract_latency_ms: float,
+        match_latency_ms: float,
+    ):
+        """Background worker: resolve Turnstile, then use the native launcher."""
+        launch_result: Optional[LaunchResult] = None
+        resolution = None
+        try:
+            try:
+                launch_result, resolution = self.launcher.resolve_and_launch_web_gateway(
+                    gateway_url=snapshot["gateway_url"],
+                    link_code=snapshot["link_code"],
+                    method=self.config.launch_method,
+                    client=getattr(self.config, "roblox_client", "voidstrap"),
+                    recv_time=t_recv,
+                    extract_time=t_extracted,
+                    match_time=t_matched,
+                    close_roblox_before=getattr(self.config, "close_roblox_before_joining", False),
+                    leave_game_before=getattr(self.config, "leave_game_before_joining", False),
+                    minimize_other=getattr(self.config, "minimize_other_windows", False),
+                )
+            except Exception:
+                logger.error(
+                    "[GatewayResolver] Unhandled resolution error:\n"
+                    f"{traceback.format_exc()}"
+                )
+
+            resolve_status = getattr(resolution, "status", "error") if resolution else "error"
+            resolve_message = getattr(resolution, "message", "") if resolution else ""
+            success = bool(launch_result and launch_result.success)
+            error_text = (
+                launch_result.error_message
+                if launch_result and launch_result.error_message
+                else resolve_message
+            )
+
+            if success:
+                status_str = "JOINED"
+            elif resolve_status == "expired":
+                status_str = "EXPIRED"
+            elif resolve_status == "not_found":
+                status_str = "NOT_FOUND"
+            elif "cooldown" in error_text.lower():
+                status_str = "COOLDOWN"
+            elif "duplicate" in error_text.lower():
+                status_str = "DUPLICATE"
+            else:
+                status_str = "ERROR"
+
+            err_str = "" if success else (error_text or "Protected link resolution failed")
+            total_latency = (
+                launch_result.latency_ms
+                if launch_result
+                else (time.time() - t_recv) * 1000.0
+            )
+            if launch_result:
+                breakdown = dict(launch_result.breakdown)
+            else:
+                breakdown = {
+                    "extract_ms": extract_latency_ms,
+                    "match_ms": match_latency_ms,
+                    "total_ms": total_latency,
+                }
+            if resolution is not None and "resolve_ms" not in breakdown:
+                breakdown["resolve_ms"] = 0.0
+
+            logger.info(
+                f"\n"
+                f"================================================================================\n"
+                f"⚡ [SNIPER EVENT] {status_str} | Protected Join Page ({resolve_status})\n"
+                f"  ├─ Origin:             {snapshot['server_name']} / #{snapshot['channel_name']} by {snapshot['author_name']}\n"
+                f"  ├─ Target Profile:     {snapshot['profile_name']} (Keyword: '{snapshot['keyword']}')\n"
+                f"  ├─ Protected URL:      {snapshot['gateway_url']}\n"
+                f"  ├─ Captured Native:    {getattr(resolution, 'roblox_url', '') or '—'}\n"
+                f"  ├─ Resolver Status:    {resolve_status}"
+                + (f" ({resolve_message})" if resolve_message else "")
+                + "\n"
+                f"  └─ TOTAL DETECT-TO-LAUNCH TIME: {total_latency:.2f} ms "
+                f"[{'SUCCESS' if success else status_str}]\n"
+                f"================================================================================"
+            )
+
+            if success:
+                # Same post-join behavior as a direct link.
+                if (
+                    getattr(self.config, "auto_pause_sniper", False)
+                    and match.profile
+                    and match.profile.pause_duration > 0
+                ):
+                    self.pause()
+                    logger.info(
+                        f"[SNIPER] Auto-paused sniper for {match.profile.pause_duration}s "
+                        f"after sniping {match.profile.name}"
+                    )
+                    threading.Timer(match.profile.pause_duration, self.resume).start()
+                self.lock_for_camping()
+
+            self._record_event(
+                server_name=snapshot["server_name"],
+                channel_name=snapshot["channel_name"],
+                author_name=snapshot["author_name"],
+                profile_name=snapshot["profile_name"],
+                keyword=snapshot["keyword"],
+                link_code=snapshot["link_code"],
+                # Keep the original protected URL in the event so the Discord
+                # webhook renders a clickable page instead of a bogus code link.
+                protocol_url=snapshot["gateway_url"],
+                latency_ms=total_latency,
+                breakdown=breakdown,
+                status=status_str,
+                error_reason=err_str,
+                timestamps=(
+                    launch_result.timestamps
+                    if launch_result
+                    else {
+                        "received": t_recv,
+                        "extracted": t_extracted,
+                        "matched": t_matched,
+                    }
+                ),
+            )
+        finally:
+            self._end_gateway_resolution()
 
     def _record_event(
         self,

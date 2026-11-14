@@ -80,6 +80,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.matcher = KeywordMatcher()
         self.launcher = RobloxLauncher(cooldown_seconds=self.config.duplicate_cooldown_sec)
+        self.launcher.gateway_browser = str(getattr(self.config, "gateway_browser", "default") or "default")
+        self.launcher.gateway_browser_path = str(getattr(self.config, "gateway_browser_path", "") or "")
 
         # Fishing Engine
         self.fishsol = FishSolEngine(
@@ -860,6 +862,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.detector.snipe_fishstrap = bool(value)
             elif key == "snipe_joingate_links":
                 self.detector.snipe_joingate = bool(value)
+            elif key == "gateway_browser":
+                self.launcher.gateway_browser = str(value or "default")
+            elif key == "gateway_browser_path":
+                self.launcher.gateway_browser_path = str(value or "")
             elif key == "sound_preset":
                 self.sound_manager.set_selection(preset_id=str(value))
             elif key == "custom_sound_path":

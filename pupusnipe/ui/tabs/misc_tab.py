@@ -6,6 +6,7 @@ Wrapped in a responsive scroll container to prevent scaling/overflow bugs.
 import os
 
 from PySide6 import QtCore, QtGui, QtWidgets
+from ...core.browsers import BROWSER_CHOICES, describe_browser, find_browser_executable
 from ...core.storage import StorageManager
 from ...core.sounds import (
     CUSTOM_SOUND_ID,
@@ -27,6 +28,7 @@ class MiscTab(QtWidgets.QWidget):
         super().__init__(parent)
         self.storage = storage
         self._custom_sound_path = ""
+        self._gateway_browser_path = ""
         self._preview_sound = SoundManager()
         self._init_ui()
         self.load_settings()
@@ -188,7 +190,65 @@ class MiscTab(QtWidgets.QWidget):
         notif_layout.addWidget(self.lbl_custom_sound)
         main_layout.addWidget(notif_group)
 
-        # 4. Discord Webhook Alerts
+        # 4. Protected Join Page Browser
+        gateway_group = QtWidgets.QGroupBox("Protected Join Pages (xe33hunt)")
+        gateway_layout = QtWidgets.QVBoxLayout(gateway_group)
+        gateway_layout.setSpacing(10)
+        gateway_layout.setContentsMargins(16, 22, 16, 16)
+
+        gateway_hint = QtWidgets.QLabel(
+            "xe33hunt hides its Roblox join link behind Cloudflare Turnstile. When native "
+            "resolution is enabled, PupuSnipe opens the page off-screen, waits for the "
+            "verification, captures the roblox:// redirect, and joins through the same "
+            "launcher used for every other link. If Cloudflare still needs you, the page "
+            "opens in the browser selected below."
+        )
+        gateway_hint.setWordWrap(True)
+        gateway_hint.setStyleSheet("color: #64748b; font-size: 10px;")
+        gateway_layout.addWidget(gateway_hint)
+
+        self.chk_gateway_resolver = QtWidgets.QCheckBox(
+            "Try native launch (resolve Cloudflare off-screen first)"
+        )
+        self.chk_gateway_resolver.toggled.connect(
+            lambda v: self.sig_setting_changed.emit("gateway_resolver_enabled", bool(v))
+        )
+        gateway_layout.addWidget(self.chk_gateway_resolver)
+
+        gateway_row = QtWidgets.QHBoxLayout()
+        gateway_row.setSpacing(8)
+        gateway_label = QtWidgets.QLabel("Open with:")
+        gateway_label.setStyleSheet("color: #94a3b8; font-weight: 600; font-size: 11px;")
+        gateway_row.addWidget(gateway_label)
+
+        self.combo_gateway_browser = QtWidgets.QComboBox()
+        self.combo_gateway_browser.setMinimumHeight(32)
+        for choice in BROWSER_CHOICES:
+            self.combo_gateway_browser.addItem(choice["name"], choice["id"])
+        self.combo_gateway_browser.currentIndexChanged.connect(self._on_gateway_browser_changed)
+        gateway_row.addWidget(self.combo_gateway_browser, 1)
+
+        self.btn_browse_gateway_browser = QtWidgets.QPushButton("📂 Browse…")
+        self.btn_browse_gateway_browser.setProperty("class", "btn-secondary")
+        self.btn_browse_gateway_browser.clicked.connect(self._browse_gateway_browser)
+        gateway_row.addWidget(self.btn_browse_gateway_browser)
+        gateway_layout.addLayout(gateway_row)
+
+        self.edit_gateway_browser_path = QtWidgets.QLineEdit()
+        self.edit_gateway_browser_path.setReadOnly(True)
+        self.edit_gateway_browser_path.setPlaceholderText("Custom browser executable path")
+        self.edit_gateway_browser_path.setMinimumHeight(32)
+        self.edit_gateway_browser_path.setVisible(False)
+        gateway_layout.addWidget(self.edit_gateway_browser_path)
+
+        self.lbl_gateway_browser_status = QtWidgets.QLabel("")
+        self.lbl_gateway_browser_status.setWordWrap(True)
+        self.lbl_gateway_browser_status.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        gateway_layout.addWidget(self.lbl_gateway_browser_status)
+
+        main_layout.addWidget(gateway_group)
+
+        # 5. Discord Webhook Alerts
         webhook_group = QtWidgets.QGroupBox("Discord Webhook Alerts")
         webhook_layout = QtWidgets.QVBoxLayout(webhook_group)
         webhook_layout.setSpacing(10)
@@ -264,6 +324,20 @@ class MiscTab(QtWidgets.QWidget):
             sound_preset = DEFAULT_SOUND_ID
         self._set_sound_combo(sound_preset)
         self._update_sound_controls()
+
+        # Load protected join-page browser
+        self._gateway_browser_path = str(self.storage.get_setting("gateway_browser_path", "") or "")
+        gateway_browser = str(self.storage.get_setting("gateway_browser", "default") or "default")
+        valid_browsers = {choice["id"] for choice in BROWSER_CHOICES}
+        if gateway_browser not in valid_browsers:
+            gateway_browser = "default"
+        self._set_gateway_browser_combo(gateway_browser)
+        self._update_gateway_browser_controls()
+
+        resolver_enabled = self.storage.get_setting("gateway_resolver_enabled", True)
+        self.chk_gateway_resolver.blockSignals(True)
+        self.chk_gateway_resolver.setChecked(bool(resolver_enabled))
+        self.chk_gateway_resolver.blockSignals(False)
 
         # Load webhook settings
         webhook_enabled = self.storage.get_setting("webhook_enabled", False)
@@ -418,6 +492,71 @@ class MiscTab(QtWidgets.QWidget):
             self._custom_sound_path,
         )
         self._preview_sound.play()
+
+    # --- Protected Join Page Browser ---
+    def _set_gateway_browser_combo(self, browser_id: str):
+        index = self.combo_gateway_browser.findData(browser_id)
+        if index < 0:
+            index = self.combo_gateway_browser.findData("default")
+        self.combo_gateway_browser.blockSignals(True)
+        self.combo_gateway_browser.setCurrentIndex(max(0, index))
+        self.combo_gateway_browser.blockSignals(False)
+
+    def _on_gateway_browser_changed(self, _index: int):
+        browser_id = self.combo_gateway_browser.currentData() or "default"
+        self.sig_setting_changed.emit("gateway_browser", browser_id)
+        if browser_id == "custom" and (
+            not self._gateway_browser_path
+            or not os.path.isfile(self._gateway_browser_path)
+        ):
+            self._browse_gateway_browser()
+        self._update_gateway_browser_controls()
+
+    def _browse_gateway_browser(self):
+        start_dir = (
+            os.path.dirname(self._gateway_browser_path)
+            if self._gateway_browser_path
+            else os.environ.get("PROGRAMFILES", "")
+        )
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select Browser Executable",
+            start_dir,
+            "Browser executable (*.exe)",
+        )
+        if path:
+            self._gateway_browser_path = path
+            self.sig_setting_changed.emit("gateway_browser_path", path)
+            self._set_gateway_browser_combo("custom")
+            self.sig_setting_changed.emit("gateway_browser", "custom")
+        self._update_gateway_browser_controls()
+
+    def _update_gateway_browser_controls(self):
+        browser_id = self.combo_gateway_browser.currentData() or "default"
+        is_custom = browser_id == "custom"
+        self.edit_gateway_browser_path.setVisible(is_custom)
+        self.edit_gateway_browser_path.setText(self._gateway_browser_path)
+
+        if is_custom:
+            if self._gateway_browser_path and os.path.isfile(self._gateway_browser_path):
+                status = f"Launching: {self._gateway_browser_path}"
+                color = "#00ff88"
+            elif self._gateway_browser_path:
+                status = f"Custom browser not found: {self._gateway_browser_path}"
+                color = "#ff6b6b"
+            else:
+                status = "No custom browser selected — click Browse… to choose one."
+                color = "#64748b"
+        elif browser_id == "default":
+            status = describe_browser("default")
+            color = "#94a3b8"
+        else:
+            path = find_browser_executable(browser_id)
+            status = describe_browser(browser_id)
+            color = "#00ff88" if path else "#ffb86b"
+
+        self.lbl_gateway_browser_status.setText(status)
+        self.lbl_gateway_browser_status.setStyleSheet(f"color: {color}; font-size: 10px;")
 
     # --- Discord Webhook ---
     def _on_webhook_url_edited(self):
