@@ -360,6 +360,33 @@ To guarantee you join private servers **before other players and public bots**, 
   4. Added `self._resolved_channels` cache in `DiscordMonitor` so channels are only resolved once, avoiding database and signal churn during high-frequency message processing.
   5. Added unit test `test_servers_tab_update_channel_info_no_loop` in `tests/test_channels.py`.
 
+### Phase 14: Discord Webhook Overhaul, Biome Image Forwarding, Engine Lifecycle Alerts & Test Button Fix (v1.1.1)
+
+1. **Webhook Test Button Hanging Bug Fix (`pupusnipe/ui/tabs/misc_tab.py`)**:
+   - **Root Cause**: `QtCore.QMetaObject.invokeMethod(self, "_run_in_main", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(object, _update_ui))` fails silently in PySide6 because raw Python callback closures are not registered C++ Qt meta-types across thread boundaries. As a result, `_update_ui` never ran, leaving the button disabled and permanently stuck on `"Sending test ping..."`.
+   - **Fix**: Replaced the meta-call with a standard Qt signal `sig_webhook_tested = QtCore.Signal(bool, str)` connected to `_on_webhook_test_result()`. The worker background thread emits `sig_webhook_tested`, and Qt automatically dispatches the result to the main GUI thread, instantly re-enabling `btn_test_webhook` and displaying either a green checkmark or an error message.
+
+2. **Prominent Clickable Join Links in Discord Markdown (`pupusnipe/core/webhook.py`)**:
+   - **Discord Limitation**: Discord's markdown parser strictly rejects non-HTTP protocols (e.g. `[Join](roblox://...)` is displayed as literal unclickable text).
+   - **Fix**:
+     - Designed high-visibility banner headline in embed description: `# 🚀 [👉 CLICK HERE TO JOIN VIP SERVER NOW 👈](primary_join_url)`.
+     - Direct clickable link included in `@everyone` notification content: `@everyone 🚨 **Sol's RNG VIP Server Sniped!** ➔ primary_join_url`.
+     - Added field `🔗 Direct Join Link (Browser / Mobile / PC)` formatted as `[👉 URL 👈](URL)`.
+     - Cleanly formatted `roblox://` protocol into an isolated code block ` ```roblox://...``` ` so desktop users can easily copy it without markdown formatting mangling the query parameters.
+     - Automatically resolves UUID instances (`https://xe33cc.github.io/join/?s=...`), share links (`https://www.roblox.com/share-links?code=...`), and direct private server links.
+
+3. **Biome Image Forwarding from Astrald's Hunters & Fallback Banners**:
+   - In `pupusnipe/core/discord_monitor.py`: Inspects incoming Discord message embeds (`embed.image.url`, `embed.thumbnail.url`) and attachments sent by Astrald's Hunters or Shay's Glitch Bot in `#🌸dreamspace`, `#🔥glitched`, `#🌐cyberspace-forwarding`, extracting the original CDN image.
+   - Passes `image_url` through `_record_event` and `on_snipe_event`.
+   - Generated high-resolution fallback neon banners in `pupusnipe/assets/biomes/` for all biomes (Dreamspace, Glitched, Cyberspace, Singularity, Corruption, Starfall, Sandstorm, Hell, Rain, Snow).
+   - Sets `"image": {"url": image_url}` in Discord webhook embed for a full-width visual banner.
+
+4. **Engine Lifecycle Notifications (Start & Stop Alerts)**:
+   - Implemented `send_engine_status_webhook` and `send_engine_status_webhook_async`:
+     - **🟢 STARTED**: Vibrant green embed (`#00ff88`) detailing all monitored channels (e.g., `#🌸dreamspace`, `#🔥glitched`), target place ID (`15532962292`), launch pipeline (`Voidstrap` via `Protocol`), and 10-minute cooldown protection.
+     - **🔴 STOPPED**: Vibrant red embed (`#ef4444`) summarizing session statistics: total messages scanned, servers sniped, and fastest detect latency.
+   - Wired into `MainWindow.start_sniper()` and `MainWindow.stop_sniper()`.
+
 ---
 
 ## ⌨️ 5. Global Hotkey Reference

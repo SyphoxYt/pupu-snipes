@@ -20,7 +20,7 @@ from ..core.fishsol import FishSolEngine
 from ..core.log_watcher import RobloxLogWatcher
 from ..core.logger import setup_logger, get_logger
 from ..core.audio import play_sound
-from ..core.webhook import send_snipe_webhook_async
+from ..core.webhook import send_snipe_webhook_async, send_engine_status_webhook_async
 
 from .theme import DARK_THEME_QSS
 from .tabs.dashboard_tab import DashboardTab
@@ -408,6 +408,24 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.monitor.start(token)
 
+        # Discord Webhook Engine Status (STARTED)
+        if getattr(self.config, "webhook_enabled", False) and getattr(self.config, "webhook_url", ""):
+            try:
+                channels = self.storage.get_channels()
+                cfg_info = {
+                    "client": getattr(self.config, "roblox_client", "voidstrap"),
+                    "method": getattr(self.config, "launch_method", "protocol"),
+                    "place_id": getattr(self.config, "place_id", "15532962292")
+                }
+                send_engine_status_webhook_async(
+                    webhook_url=self.config.webhook_url,
+                    status="STARTED",
+                    channels=channels,
+                    config_info=cfg_info
+                )
+            except Exception as ex:
+                logger.debug(f"[Webhook] Start status dispatch error: {ex}")
+
     def reset_join_cooldown(self):
         self.launcher.reset_global_cooldown()
         self.is_biome_locked = False
@@ -433,6 +451,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lbl_sidebar_status.setText("● Engine: Stopped")
         self.lbl_sidebar_status.setStyleSheet("color: #64748b; font-size: 11px; font-weight: 700; padding: 6px;")
         logger.info("Sniper engine stopped.")
+
+        # Discord Webhook Engine Status (STOPPED)
+        if getattr(self.config, "webhook_enabled", False) and getattr(self.config, "webhook_url", ""):
+            try:
+                stats = {
+                    "scanned": self.total_scanned,
+                    "joined": self.total_joined,
+                    "fastest_ms": self.fastest_latency if self.fastest_latency < 999990 else 0.0
+                }
+                send_engine_status_webhook_async(
+                    webhook_url=self.config.webhook_url,
+                    status="STOPPED",
+                    stats=stats
+                )
+            except Exception as ex:
+                logger.debug(f"[Webhook] Stop status dispatch error: {ex}")
 
     def pause_sniper(self):
         self.monitor.pause()

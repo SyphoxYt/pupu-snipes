@@ -15,10 +15,12 @@ class MiscTab(QtWidgets.QWidget):
     sig_blacklists_updated = QtCore.Signal(list, list)
     sig_hotkeys_updated = QtCore.Signal(dict)
     sig_setting_changed = QtCore.Signal(str, object)
+    sig_webhook_tested = QtCore.Signal(bool, str)
 
     def __init__(self, storage: StorageManager, parent=None):
         super().__init__(parent)
         self.storage = storage
+        self.sig_webhook_tested.connect(self._on_webhook_test_result)
         self._init_ui()
         self.load_settings()
 
@@ -426,18 +428,15 @@ class MiscTab(QtWidgets.QWidget):
 
         def _worker():
             success, msg = send_test_webhook(url, ping_everyone=ping)
-            def _update_ui():
-                self.btn_test_webhook.setEnabled(True)
-                if success:
-                    self.lbl_webhook_status.setText("✓ Webhook delivered successfully!")
-                    self.lbl_webhook_status.setStyleSheet("color: #00ff88; font-size: 11px; font-weight: 700;")
-                else:
-                    self.lbl_webhook_status.setText(f"❌ Failed: {msg[:40]}")
-                    self.lbl_webhook_status.setStyleSheet("color: #f87171; font-size: 11px; font-weight: 600;")
-            QtCore.QMetaObject.invokeMethod(self, "_run_in_main", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(object, _update_ui))
+            self.sig_webhook_tested.emit(success, msg)
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    @QtCore.Slot(object)
-    def _run_in_main(self, callback):
-        callback()
+    def _on_webhook_test_result(self, success: bool, msg: str):
+        self.btn_test_webhook.setEnabled(True)
+        if success:
+            self.lbl_webhook_status.setText("✓ Webhook delivered successfully!")
+            self.lbl_webhook_status.setStyleSheet("color: #00ff88; font-size: 11px; font-weight: 700;")
+        else:
+            self.lbl_webhook_status.setText(f"❌ Failed: {msg[:45]}")
+            self.lbl_webhook_status.setStyleSheet("color: #f87171; font-size: 11px; font-weight: 600;")

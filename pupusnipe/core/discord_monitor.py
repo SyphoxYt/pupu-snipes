@@ -383,7 +383,7 @@ class DiscordMonitor:
                 except Exception:
                     pass
 
-        # Step 1: URL Extraction (from Content, Embeds, Fields, and Component Buttons)
+        # Step 1: URL & Media Extraction (Content, Embeds, Fields, Component Buttons, Images)
         embeds_data = [e.to_dict() for e in message.embeds] if message.embeds else []
         components_data = getattr(message, "components", [])
         attachments_data = getattr(message, "attachments", [])
@@ -396,6 +396,33 @@ class DiscordMonitor:
         )
         t_extracted = time.time()
         extract_latency_ms = (t_extracted - t_recv) * 1000.0
+
+        # Extract attached or embedded image URL (e.g. from Astrald's Hunters, Shay's Glitch Bot)
+        extracted_image_url = ""
+        if message.embeds:
+            for emb in message.embeds:
+                img_obj = getattr(emb, "image", None)
+                if img_obj and getattr(img_obj, "url", None):
+                    extracted_image_url = str(img_obj.url)
+                    break
+                thumb_obj = getattr(emb, "thumbnail", None)
+                if thumb_obj and getattr(thumb_obj, "url", None):
+                    extracted_image_url = str(thumb_obj.url)
+                    break
+                if isinstance(emb, dict):
+                    if emb.get("image", {}).get("url"):
+                        extracted_image_url = str(emb["image"]["url"])
+                        break
+                    if emb.get("thumbnail", {}).get("url"):
+                        extracted_image_url = str(emb["thumbnail"]["url"])
+                        break
+
+        if not extracted_image_url and getattr(message, "attachments", None):
+            for att in message.attachments:
+                att_url = getattr(att, "url", "") if hasattr(att, "url") else (att.get("url", "") if isinstance(att, dict) else "")
+                if att_url and any(att_url.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]):
+                    extracted_image_url = str(att_url)
+                    break
 
         if not extracted_link or not extracted_link.is_valid:
             if extracted_link and extracted_link.is_phishing:
@@ -568,7 +595,9 @@ class DiscordMonitor:
             breakdown=breakdown,
             status=status_str,
             error_reason=err_str,
-            timestamps=launch_result.timestamps if launch_result else {"received": t_recv}
+            timestamps=launch_result.timestamps if launch_result else {"received": t_recv},
+            image_url=extracted_image_url,
+            raw_url=extracted_link.raw_url
         )
 
     def _record_event(
@@ -584,7 +613,9 @@ class DiscordMonitor:
         breakdown: Dict[str, float],
         status: str,
         error_reason: str = "",
-        timestamps: Dict[str, float] = None
+        timestamps: Dict[str, float] = None,
+        image_url: str = "",
+        raw_url: str = ""
     ):
         self.storage.add_history_entry(
             server_name=server_name,
@@ -613,6 +644,8 @@ class DiscordMonitor:
                 "breakdown": breakdown,
                 "status": status,
                 "error_reason": error_reason,
-                "timestamps": timestamps or {}
+                "timestamps": timestamps or {},
+                "image_url": image_url,
+                "raw_url": raw_url
             }
             self.on_snipe_event(event_data)
