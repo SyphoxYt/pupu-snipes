@@ -343,6 +343,42 @@ class RobloxLauncher:
         except Exception:
             return False
 
+    def _set_roblox_protocol_handler(self, exe_path: str, is_bootstrapper: bool = False) -> None:
+        """
+        Temporarily overrides the Windows roblox:// and roblox-player:// protocol
+        handlers in HKCU to point to the given executable.  This ensures that when
+        a web gateway (e.g. xe33hunt.com) passes Cloudflare Turnstile and fires
+        a roblox:// URI, Windows routes to the client the user actually selected
+        in PupuSnipe (Normal Roblox vs Voidstrap) instead of whatever bootstrapper
+        permanently owns the registry key.
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            import winreg
+            if is_bootstrapper:
+                cmd = f'"{exe_path}" -player "%1"'
+            else:
+                cmd = f'"{exe_path}" %1'
+
+            for subkey in (
+                r"Software\Classes\roblox\shell\open\command",
+                r"Software\Classes\roblox-player\shell\open\command",
+            ):
+                try:
+                    with winreg.OpenKey(
+                        winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE
+                    ) as key:
+                        winreg.SetValueEx(key, "", 0, winreg.REG_SZ, cmd)
+                except Exception as e:
+                    logger.debug(f"[RobloxLauncher] Could not set protocol handler [{subkey}]: {e}")
+            logger.info(
+                f"[RobloxLauncher] Temporarily set roblox:// protocol handler → {exe_path}"
+                f" (bootstrapper={is_bootstrapper})"
+            )
+        except Exception as e:
+            logger.warning(f"[RobloxLauncher] Failed to set protocol handler: {e}")
+
     @staticmethod
     def _win32_fast_spawn(exe_path: str, protocol_url: str) -> bool:
         """
@@ -455,15 +491,30 @@ class RobloxLauncher:
             launched_successfully = False
 
             # ROUTING 0: Web Gateway Join URL (e.g. xe33hunt.com, browser redirect portals)
+            # These links are protected by Cloudflare Turnstile so they MUST open in
+            # the browser.  Before we do that, temporarily set the Windows roblox://
+            # protocol handler to match the user's selected client so that when
+            # Turnstile passes and the browser fires roblox://, the correct client
+            # launches — not whatever bootstrapper permanently owns the registry key.
             if protocol_url.startswith("http://") or protocol_url.startswith("https://"):
                 if sys.platform == "win32":
+                    # Set protocol handler to match user's client preference
+                    if client == "vanilla":
+                        _exe = self.find_roblox_executable(force_vanilla=True)
+                        if _exe:
+                            self._set_roblox_protocol_handler(_exe, is_bootstrapper=False)
+                    elif client == "voidstrap":
+                        _boot = self.find_bootstrapper_executable()
+                        if _boot:
+                            self._set_roblox_protocol_handler(_boot, is_bootstrapper=True)
+
                     res = ctypes.windll.shell32.ShellExecuteW(None, "open", protocol_url, None, None, 1)
                     if res <= 32:
                         os.startfile(protocol_url)
                 else:
                     os.startfile(protocol_url)
                 launched_successfully = True
-                logger.info(f"[RobloxLauncher] Dispatched web gateway join link to default browser: {protocol_url}")
+                logger.info(f"[RobloxLauncher] Dispatched web gateway join link to default browser (client={client}): {protocol_url}")
 
             # STRICT ROUTING 1: User explicitly chose Normal Roblox (Vanilla)
             elif client == "vanilla":
