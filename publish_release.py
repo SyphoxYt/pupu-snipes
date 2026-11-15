@@ -109,55 +109,40 @@ if __name__ == "__main__":
         exit(1)
 
     repo = "SyphoxYt/pupu-snipes"
-    tag = "v1.1.3"
-    name = "PupuSnipe v1.1.3 — Clickable VIP Join Links, Live Biome Images & Engine Webhooks"
-    body = """## 🎯 PupuSnipe v1.1.3 — Clickable VIP Join Links, Live Biome Images & Engine Webhooks
+    tag = "1.1.4"
+    name = "PupuSnipe v1.1.4 — Strict Normal Roblox Isolation & Discord Clickable Hyperlinks"
+    body = """## 🎯 PupuSnipe v1.1.4 — Strict Normal Roblox Isolation & Discord Clickable Hyperlinks
 
-PupuSnipe v1.1.3 brings a major overhaul to Discord Webhook notifications: fixing join link formatting, adding live Sol's RNG biome embed pictures, real-time sniper lifecycle tracking, and fixing UI test button freezes.
+PupuSnipe v1.1.4 fixes two critical issues: strictly enforcing Normal Roblox (`RobloxPlayerBeta.exe`) launch isolation so it never accidentally invokes Voidstrap, and fixing Discord Webhook join links so they are 100% clickable across all devices (PC, Mobile, and Web).
 
 ---
 
-### 🚀 Clickable VIP Join Links in Discord
-- **Prominent Join Banner**: Solves Discord's limitation where custom protocol links (`roblox://`) are unclickable in markdown. v1.1.3 introduces a prominent clickable headline banner:
-  `# 🚀 [👉 CLICK HERE TO JOIN VIP SERVER NOW 👈](https://...)`
-- **Clickable Pings**: The `@everyone` notification message now contains a direct clickable link to join immediately on mobile, browser, or PC.
-- **Dedicated Link Field**: Displays the direct web URL for UUID gateway instances (`https://xe33cc.github.io/join/?s=...`), share links (`https://www.roblox.com/share-links?code=...`), and private server links.
-- **Protocol Code Block**: The raw `roblox://` protocol link is cleanly formatted in an isolated code block ` ```roblox://...``` ` so desktop players can easily copy it into Windows Run or terminal.
+### 🚀 Strict Normal Roblox Isolation
+- **Strict Client Routing**: When the user selects **"Normal Roblox (RobloxPlayerBeta.exe)"**, PupuSnipe exclusively resolves and spawns official Roblox (`RobloxPlayerBeta.exe`).
+- **Never Triggers Voidstrap**: Fixed a logic bug where selecting "Direct Bootstrapper / Client Launch" while having Normal Roblox selected previously fell into Voidstrap launch routines. Voidstrap/Bloxstrap detection is now strictly bypassed when set to Normal Roblox.
+- **Fast In-Game Server Hopping**: When Roblox is already running, launching `RobloxPlayerBeta.exe <protocol_url>` directs the active Roblox client to hop servers instantly without closing and reopening the game window.
+- **Independent Scanner Caches**: Vanilla Roblox and custom bootstrappers now maintain independent cache entries to avoid path cross-contamination.
 
-### 🌸 Live Biome Image Forwarding & Fallbacks
-- **Incoming Embed Extraction**: Automatically inspects incoming Discord messages from forwarding bots (such as *Astrald's Hunters* or *Shay's Glitch Bot* in `#🌸dreamspace`, `#🔥glitched`, `#🌐cyberspace-forwarding`) and extracts the original Discord CDN biome image.
-- **Full-Width Embed Image**: Embeds the extracted image directly into the webhook notification (`image.url`).
-- **Bundled Neon Fallback Banners**: If a message lacks an image, PupuSnipe falls back to high-resolution custom neon biome banners for *Dreamspace, Glitched, Cyberspace, Singularity, Corruption, Starfall, Sandstorm, Hell, Rain, and Snow*.
+### 🔗 100% Clickable Discord Webhook Links
+- **Fixed Broken Discord Markdown**: Fixed the issue where raw URLs wrapped in markdown brackets `[**👉 https://... 👈**](https://...)` broke Discord's markdown parser, rendering unclickable raw text.
+- **Prominent Clickable Headline**: Clean `# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW](https://...)` header button.
+- **Dual Direct Join Link**: The Direct Join Link field now provides both a clean clickable label `[👉 Click Here to Open VIP Server 👈](https://...)` AND the bare URL on its own line, ensuring 100% clickability across desktop, browser, iOS, and Android clients.
+- **Clean Windows Run (Win + R) Protocol**: Removed the broken `roblox://` markdown link (which Discord security policies disallow and render as raw text) and replaced it with a clean, single-click copyable code block ` ```roblox://...``` ` specifically intended for Windows Run (`Win + R`).
 
-### 📡 Engine Lifecycle Notifications (Start & Stop)
-- **🟢 Engine Started Alert**: Posts a vibrant green embed when the sniper engine starts, detailing:
-  - Connected channels with server and channel names (e.g. `#🌸dreamspace`, `#🔥glitched`).
-  - Target place ID (`15532962292` - Sol's RNG).
-  - Launch pipeline client and method (e.g. `Voidstrap` via `Protocol`).
-  - 10-minute cooldown protection status.
-- **🔴 Engine Stopped Alert**: Posts a vibrant red embed summarizing session metrics:
-  - Total messages scanned.
-  - Total servers sniped.
-  - Fastest detect latency in milliseconds.
-
-### 🛠️ Bug Fixes & Improvements
-- **Fixed Webhook Test Button Hanging**: Replaced the thread-unsafe meta-object call with a native PySide6 signal (`sig_webhook_tested`). The **"🧪 Test Webhook"** button now immediately re-enables with success/error status and never freezes on *"Sending test ping..."*.
-- **Async Daemon Dispatch**: Webhooks and engine status alerts run on isolated daemon threads with 0ms impact on Roblox launch speed.
-
-### 🧪 Quality & Tests
-- **54 Passing Unit Tests**: Comprehensive test suite covering audio presets, webhook payload generation, engine status alerts, and regex link parsing.
-- Compiled as a standalone Windows x64 onedir distribution with instant startup and embedded assets.
+### 🛠️ Additional Polish
+- **Updated UI Combos**: Clarified launcher method dropdown to explicitly show `Direct Client / Bootstrapper Launch (RobloxPlayerBeta / Voidstrap)`.
+- **56 Comprehensive Unit Tests**: Added unit tests verifying strict vanilla client isolation and bootstrapper decoupling.
 
 ---
 
 ### 📦 Installation & Quick Start
-1. Download **`PupuSnipe-v1.1.3-win64.zip`** below.
+1. Download **`PupuSnipe-v1.1.4-win64.zip`** below.
 2. Extract the archive anywhere on your PC.
 3. Run **`PupuSnipe.exe`**!
 """
 
     dist_folder = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe"
-    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.3-win64.zip"
+    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.4-win64.zip"
 
     if not os.path.exists(zip_dest):
         zip_dist(dist_folder, zip_dest)

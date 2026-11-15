@@ -72,7 +72,7 @@ def _derive_web_url(protocol_url: str, link_code: str) -> str:
             qs = urllib.parse.parse_qs(parsed.query)
             code = qs.get("code", [""])[0]
         if code:
-            return f"https://www.roblox.com/share-links?code={code}&type=Server"
+            return f"https://www.roblox.com/share?code={code}&type=Server"
 
     # 2. Game Instance (placeId=...&gameInstanceId=...)
     if "gameInstanceId=" in protocol_url:
@@ -116,7 +116,7 @@ def _resolve_primary_join_url(raw_url: str, protocol_url: str, link_code: str) -
     if link_code:
         if len(link_code) == 36 and "-" in link_code:
             return f"https://xe33cc.github.io/join/?s={link_code}"
-        return f"https://www.roblox.com/share-links?code={link_code}&type=Server"
+        return f"https://www.roblox.com/share?code={link_code}&type=Server"
 
     return "https://www.roblox.com/games/15532962292"
 
@@ -146,7 +146,7 @@ def build_snipe_payload(event: Dict[str, Any], ping_everyone: bool = True) -> Di
     now_iso = datetime.now(timezone.utc).isoformat()
 
     desc_lines = [
-        f"# 🚀 [👉 CLICK HERE TO JOIN VIP SERVER NOW 👈]({primary_join_url})",
+        f"# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW]({primary_join_url})",
         "",
         "⚡ **PupuSnipe** instantly captured a Sol's RNG private server join link and executed native launch!",
         ""
@@ -170,15 +170,15 @@ def build_snipe_payload(event: Dict[str, Any], ping_everyone: bool = True) -> Di
         },
         {
             "name": "🔗 Direct Join Link (Browser / Mobile / PC)",
-            "value": f"[**👉 {primary_join_url} 👈**]({primary_join_url})",
+            "value": f"[👉 **Click Here to Open VIP Server** 👈]({primary_join_url})\n{primary_join_url}",
             "inline": False
         }
     ]
 
     if protocol_url:
         fields.append({
-            "name": "💻 Instant Roblox Protocol Launch",
-            "value": f"[**Click Here to Launch Roblox Directly**](<{protocol_url}>)\n```{protocol_url}```",
+            "name": "💻 Windows Run Protocol (Win + R)",
+            "value": f"```{protocol_url}```\n*(Copy and paste into Windows Run `Win+R` to join directly)*",
             "inline": False
         })
 
@@ -198,7 +198,7 @@ def build_snipe_payload(event: Dict[str, Any], ping_everyone: bool = True) -> Di
             "url": LOGO_URL
         },
         "footer": {
-            "text": "PupuSnipe v1.1.0 • Sub-20ms Sol's RNG Private Server Sniper",
+            "text": "PupuSnipe v1.1.4 • Sub-20ms Sol's RNG Private Server Sniper",
             "icon_url": LOGO_URL
         },
         "timestamp": now_iso

@@ -64,7 +64,7 @@ class TestAudioAndWebhook(unittest.TestCase):
         # Share link
         proto_share = "roblox://navigation/share_links?code=testcode123&type=Server"
         web_share = _derive_web_url(proto_share, "testcode123")
-        self.assertEqual(web_share, "https://www.roblox.com/share-links?code=testcode123&type=Server")
+        self.assertEqual(web_share, "https://www.roblox.com/share?code=testcode123&type=Server")
 
         # Game Instance
         proto_gi = "roblox://experiences/start?placeId=15532962292&gameInstanceId=9de406b3-cb36-4c4b-ae90-a1f2678dda26"
@@ -102,7 +102,8 @@ class TestAudioAndWebhook(unittest.TestCase):
         self.assertEqual(embed["image"]["url"], "https://cdn.discordapp.com/attachments/1234/5678/dreamspace.png")
         self.assertTrue(any(f["name"] == "🌸 Biome / Event" for f in embed["fields"]))
         self.assertTrue(any("13.50 ms" in f["value"] for f in embed["fields"]))
-        self.assertTrue(any("Click Here to Launch Roblox Directly" in f["value"] for f in embed["fields"]))
+        self.assertTrue(any("Windows Run Protocol" in f["name"] for f in embed["fields"]))
+        self.assertTrue(any("Win+R" in f["value"] for f in embed["fields"]))
         self.assertTrue(any("Direct Join Link" in f["name"] for f in embed["fields"]))
 
         # Without ping

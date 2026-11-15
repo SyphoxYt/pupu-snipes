@@ -404,6 +404,27 @@ To guarantee you join private servers **before other players and public bots**, 
 
 ---
 
+### Phase 16: Strict Normal Roblox Isolation & Discord Clickable Hyperlinks Fix (v1.1.4)
+
+1. **Strict Normal Roblox (`client = "vanilla"`) Isolation**:
+   - **The Bug**: When users selected "Normal Roblox (RobloxPlayerBeta.exe)" and "Direct Bootstrapper/Client Launch (`direct_exe`)", the launcher evaluated `if method == "direct_exe" or client == "voidstrap"`, which prioritized Voidstrap executable discovery and executed `Voidstrap.exe -player <url>`, ignoring the user's Normal Roblox selection. Furthermore, `find_roblox_executable` had a fallback to bootstrapper directories.
+   - **The Fix**:
+     - Strict client routing in `launch()`: when `client == "vanilla"`, PupuSnipe exclusively resolves official `RobloxPlayerBeta.exe` via `find_roblox_executable(force_vanilla=True)`. Voidstrap/Bloxstrap detection is **never** invoked.
+     - Spawns `[exe, protocol_url]`. If Roblox is already open, Roblox handles the protocol argument and performs an instant in-game hop without terminating or restarting the client.
+     - Completely separated cache for `_cached_vanilla_exe` and `_cached_bootstrapper_exe` so scans don't pollute each other.
+     - Updated UI labels in `sniper_tab.py` to clarify "Direct Client / Bootstrapper Launch (RobloxPlayerBeta / Voidstrap)".
+
+2. **Discord Webhook Hyperlinks Repair**:
+   - **The Bug**: As seen in Discord mobile and desktop, join links were rendered as broken, unclickable raw text:
+     - `[**👉 https://www.roblox.com/share?... 👈**](https://...)`: Having the raw URL inside `[...]` broke Discord's markdown parser because the Discord auto-link detector conflicted with the markdown link detector.
+     - `[**Click Here to Launch Roblox Directly**](<roblox://...>)`: Discord markdown specification strictly whitelists only `http://` and `https://` (and `discord://`). Custom URI schemes like `roblox://` are explicitly forbidden by Discord's client parser and render as literal text.
+   - **The Fix**:
+     - **Clickable Header**: `# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW]({primary_join_url})` with clean anchor text without nested emojis inside brackets.
+     - **Direct Join Link**: `[👉 **Click Here to Open VIP Server** 👈]({primary_join_url})\n{primary_join_url}` — providing both a clean styled hyperlink and an auto-linked bare URL on its own line for 100% clickability across desktop, web, iOS, and Android.
+     - **Protocol Field**: Formatted strictly as a code block ` ```{protocol_url}``` ` labeled `💻 Windows Run Protocol (Win + R)` with clear instructions to paste into `Win+R`, removing the invalid `[text](<roblox://...>)` hyperlink.
+
+---
+
 ## ⌨️ 5. Global Hotkey Reference
 
 | Hotkey | Action | Default Binding | Configurable |

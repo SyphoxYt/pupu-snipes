@@ -49,6 +49,50 @@ class TestRobloxLauncher(unittest.TestCase):
         self.assertFalse(self.launcher.is_on_global_cooldown())
         self.assertEqual(self.launcher.get_cooldown_remaining(), 0.0)
 
+    def test_vanilla_strict_isolation(self):
+        """Verify client='vanilla' with method='direct_exe' launches vanilla exe and NEVER touches bootstrapper."""
+        from unittest.mock import patch, MagicMock
+
+        with patch.object(self.launcher, "find_roblox_executable", return_value="C:\\Fake\\RobloxPlayerBeta.exe") as mock_find_vanilla, \
+             patch.object(self.launcher, "find_bootstrapper_executable", return_value="D:\\Void Strap 67\\Voidstrap.exe") as mock_find_boot, \
+             patch("subprocess.Popen") as mock_popen:
+
+            res = self.launcher.launch(
+                protocol_url="roblox://test_vanilla",
+                link_code="vanilla_code_1",
+                method="direct_exe",
+                client="vanilla",
+                ignore_cooldown=True
+            )
+
+            self.assertTrue(res.success)
+            mock_find_vanilla.assert_called_once_with(force_vanilla=True)
+            mock_find_boot.assert_not_called()
+            mock_popen.assert_called_once()
+            args, _ = mock_popen.call_args
+            self.assertEqual(args[0], ["C:\\Fake\\RobloxPlayerBeta.exe", "roblox://test_vanilla"])
+
+    def test_voidstrap_routing(self):
+        """Verify client='voidstrap' launches bootstrapper."""
+        from unittest.mock import patch
+
+        with patch.object(self.launcher, "find_bootstrapper_executable", return_value="D:\\Void Strap 67\\Voidstrap.exe") as mock_find_boot, \
+             patch("subprocess.Popen") as mock_popen:
+
+            res = self.launcher.launch(
+                protocol_url="roblox://test_voidstrap",
+                link_code="voidstrap_code_1",
+                method="direct_exe",
+                client="voidstrap",
+                ignore_cooldown=True
+            )
+
+            self.assertTrue(res.success)
+            mock_find_boot.assert_called_once()
+            mock_popen.assert_called_once()
+            args, _ = mock_popen.call_args
+            self.assertEqual(args[0], ["D:\\Void Strap 67\\Voidstrap.exe", "-player", "roblox://test_voidstrap"])
+
 
 if __name__ == "__main__":
     unittest.main()

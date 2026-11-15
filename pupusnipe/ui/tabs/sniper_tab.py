@@ -300,7 +300,7 @@ class SniperTab(QtWidgets.QWidget):
         self.combo_launch_method = QtWidgets.QComboBox()
         self.combo_launch_method.addItems([
             "Direct Windows Protocol (roblox://) [Instant & Recommended]",
-            "Direct Bootstrapper Launch (Voidstrap / Bloxstrap)",
+            "Direct Client / Bootstrapper Launch (RobloxPlayerBeta / Voidstrap)",
             "System Browser / Shell Start"
         ])
         self.combo_launch_method.currentIndexChanged.connect(self._on_launch_method_changed)
@@ -386,7 +386,7 @@ class SniperTab(QtWidgets.QWidget):
         self.combo_test_method = QtWidgets.QComboBox()
         self.combo_test_method.addItems([
             "Direct Windows Protocol (roblox://) [Recommended]",
-            "Direct Bootstrapper Launch",
+            "Direct Client / Bootstrapper Launch",
             "System Browser / Shell Start"
         ])
         self.combo_test_method.setMinimumHeight(32)

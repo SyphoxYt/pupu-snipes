@@ -101,8 +101,10 @@ class RobloxLauncher:
         self.last_join_time: float = 0.0
         self._joined_links: Dict[str, float] = OrderedDict()
         self._lock = threading.Lock()
-        self._cached_exe_path: Optional[str] = None
-        self._last_exe_scan: float = 0.0
+        self._cached_vanilla_exe: Optional[str] = None
+        self._last_vanilla_scan: float = 0.0
+        self._cached_bootstrapper_exe: Optional[str] = None
+        self._last_bootstrapper_scan: float = 0.0
 
     def get_cooldown_remaining(self) -> float:
         """Returns remaining seconds for the 10-minute global join cooldown, or 0.0 if ready."""
@@ -218,12 +220,17 @@ class RobloxLauncher:
 
     def find_roblox_executable(self, force_vanilla: bool = True) -> Optional[str]:
         """
-        Locates the vanilla Normal Roblox player executable (RobloxPlayerBeta.exe).
-        Prioritizes official %LOCALAPPDATA%\\Roblox\\Versions to completely bypass Voidstrap wrapper latency.
+        Locates the official vanilla Normal Roblox player executable (RobloxPlayerBeta.exe).
+        Prioritizes official %LOCALAPPDATA%\\Roblox\\Versions to completely bypass Voidstrap.
+        When force_vanilla is True, NEVER returns Voidstrap or Bloxstrap!
         """
         now = time.time()
-        if self._cached_exe_path and (now - self._last_exe_scan < 300) and os.path.exists(self._cached_exe_path):
-            return self._cached_exe_path
+        if force_vanilla:
+            if self._cached_vanilla_exe and (now - self._last_vanilla_scan < 300) and os.path.exists(self._cached_vanilla_exe):
+                return self._cached_vanilla_exe
+        else:
+            if self._cached_bootstrapper_exe and (now - self._last_bootstrapper_scan < 300) and os.path.exists(self._cached_bootstrapper_exe):
+                return self._cached_bootstrapper_exe
 
         local_app_data = os.environ.get("LOCALAPPDATA", "")
         search_dirs = []
@@ -238,7 +245,7 @@ class RobloxLauncher:
         prog_files_64 = os.environ.get("ProgramFiles", r"C:\Program Files")
         search_dirs.append(os.path.join(prog_files_64, "Roblox", "Versions"))
 
-        # Fallback to bootstrapper directories only if normal Roblox not found
+        # Fallback to bootstrapper directories ONLY when vanilla is NOT forced
         if not force_vanilla:
             if local_app_data:
                 search_dirs.append(os.path.join(local_app_data, "Bloxstrap", "Versions"))
@@ -270,16 +277,17 @@ class RobloxLauncher:
                 continue
 
         if best_path:
-            self._cached_exe_path = best_path
-            self._last_exe_scan = now
-            logger.info(f"Using Normal Roblox Player executable (Fastest): {best_path}")
+            if force_vanilla:
+                self._cached_vanilla_exe = best_path
+                self._last_vanilla_scan = now
+                logger.info(f"[RobloxLauncher] Using Normal Roblox Player executable (Fastest): {best_path}")
+            else:
+                self._cached_bootstrapper_exe = best_path
+                self._last_bootstrapper_scan = now
             return best_path
 
-        # If vanilla was forced but not found, fallback to any available bootstrapper
-        if force_vanilla and not best_path:
-            return self.find_roblox_executable(force_vanilla=False)
-
-        return best_path
+        # If vanilla was forced and not found, strictly return None (DO NOT fallback to Voidstrap!)
+        return None
 
     def find_bootstrapper_executable(self) -> Optional[str]:
         """Locates custom bootstrapper (Voidstrap or Bloxstrap) if installed."""
@@ -313,23 +321,25 @@ class RobloxLauncher:
                 return c
         return None
 
-    def prewarm_client(self) -> bool:
+    def prewarm_client(self, client: str = "vanilla") -> bool:
         """Pre-warms the Roblox client so that subsequent link joins connect immediately."""
         if self.is_roblox_running():
             return True
 
         try:
-            boot = self.find_bootstrapper_executable()
-            if boot:
-                subprocess.Popen([boot], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return True
-            exe = self.find_roblox_executable()
-            if exe:
-                subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return True
+            if client == "voidstrap":
+                boot = self.find_bootstrapper_executable()
+                if boot:
+                    subprocess.Popen([boot], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return True
             else:
-                os.startfile("roblox://")
-                return True
+                exe = self.find_roblox_executable(force_vanilla=True)
+                if exe:
+                    subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    return True
+
+            os.startfile("roblox://")
+            return True
         except Exception:
             return False
 
@@ -444,27 +454,25 @@ class RobloxLauncher:
         try:
             launched_successfully = False
 
-            # PATH 1: Roblox is ALREADY RUNNING -> In-Game Server Hop WITHOUT Closing!
-            # Never spawn raw RobloxPlayerBeta.exe directly while game is open, as Windows single-instance
-            # will terminate the existing game window and perform a slow full cold restart.
-            # Instead, dispatch via bootstrapper or Windows protocol to trigger instant in-place server hop!
-            if roblox_was_running:
-                logger.info("[RobloxLauncher] Roblox is ALREADY OPEN -> Triggering in-game server hop without closing/reopening!")
-                boot = self.find_bootstrapper_executable()
-
-                # If user selected direct bootstrapper launch or voidstrap, send hop command via bootstrapper
-                if (method == "direct_exe" or client == "voidstrap") and boot:
+            # STRICT ROUTING 1: User explicitly chose Normal Roblox (Vanilla)
+            if client == "vanilla":
+                exe = self.find_roblox_executable(force_vanilla=True)
+                if exe:
+                    # Pure direct launch of RobloxPlayerBeta.exe with protocol url.
+                    # Whether Roblox is running or cold, passing protocol_url to RobloxPlayerBeta.exe:
+                    # - If Roblox is ALREADY OPEN: passes join parameter to running game for instant in-game hop without closing/restarting!
+                    # - If Roblox is NOT OPEN: starts Normal Roblox immediately.
+                    # Voidstrap is NEVER executed or touched.
                     subprocess.Popen(
-                        [boot, "-player", protocol_url],
+                        [exe, protocol_url],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
                     )
                     launched_successfully = True
-                    logger.info(f"[RobloxLauncher] Dispatched in-place hop via bootstrapper: {boot}")
-
-                # Otherwise dispatch via Windows Protocol (routes directly to the running game instance)
-                if not launched_successfully:
+                    logger.info(f"[RobloxLauncher] Launched Normal Roblox Player: {exe}")
+                else:
+                    logger.warning("[RobloxLauncher] Normal Roblox (RobloxPlayerBeta.exe) not found! Dispatching via Windows protocol...")
                     if sys.platform == "win32":
                         res = ctypes.windll.shell32.ShellExecuteW(None, "open", protocol_url, None, None, 1)
                         if res <= 32:
@@ -472,12 +480,33 @@ class RobloxLauncher:
                     else:
                         os.startfile(protocol_url)
                     launched_successfully = True
-                    logger.info("[RobloxLauncher] Dispatched in-place hop via Windows roblox:// protocol.")
 
-            # PATH 2: Roblox is NOT running (Cold Start)
+            # STRICT ROUTING 2: User explicitly chose Voidstrap / Bloxstrap Bootstrapper
+            elif client == "voidstrap":
+                boot = self.find_bootstrapper_executable()
+                if boot:
+                    subprocess.Popen(
+                        [boot, "-player", protocol_url],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
+                    )
+                    launched_successfully = True
+                    logger.info(f"[RobloxLauncher] Launched custom bootstrapper (Voidstrap): {boot}")
+                else:
+                    logger.warning("[RobloxLauncher] Voidstrap executable not found! Dispatching via Windows protocol...")
+                    if sys.platform == "win32":
+                        res = ctypes.windll.shell32.ShellExecuteW(None, "open", protocol_url, None, None, 1)
+                        if res <= 32:
+                            os.startfile(protocol_url)
+                    else:
+                        os.startfile(protocol_url)
+                    launched_successfully = True
+
+            # ROUTING 3: Windows Default / Auto Selection
             else:
-                # 1. Direct Bootstrapper Launch (Voidstrap / Bloxstrap)
-                if method == "direct_exe" or client == "voidstrap":
+                if method == "direct_exe":
+                    # Try bootstrapper first, then Normal Roblox
                     boot = self.find_bootstrapper_executable()
                     if boot:
                         subprocess.Popen(
@@ -487,22 +516,19 @@ class RobloxLauncher:
                             creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
                         )
                         launched_successfully = True
-                        logger.info(f"[RobloxLauncher] Launched via bootstrapper: {boot}")
+                        logger.info(f"[RobloxLauncher] Auto-launched bootstrapper: {boot}")
+                    else:
+                        exe = self.find_roblox_executable(force_vanilla=True)
+                        if exe:
+                            subprocess.Popen(
+                                [exe, protocol_url],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
+                            )
+                            launched_successfully = True
+                            logger.info(f"[RobloxLauncher] Auto-launched Normal Roblox: {exe}")
 
-                # 2. Vanilla Normal Roblox (RobloxPlayerBeta.exe)
-                elif client == "vanilla" and method != "protocol":
-                    exe = self.find_roblox_executable(force_vanilla=True)
-                    if exe:
-                        subprocess.Popen(
-                            [exe, protocol_url],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                            creationflags=subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
-                        )
-                        launched_successfully = True
-                        logger.info(f"[RobloxLauncher] Launched via RobloxPlayerBeta.exe: {exe}")
-
-                # 3. Default / Fallback: Windows Native Protocol Handler (Universal & Secure)
                 if not launched_successfully:
                     if sys.platform == "win32":
                         res = ctypes.windll.shell32.ShellExecuteW(None, "open", protocol_url, None, None, 1)
@@ -511,7 +537,7 @@ class RobloxLauncher:
                     else:
                         os.startfile(protocol_url)
                     launched_successfully = True
-                    logger.info("[RobloxLauncher] Launched via Windows roblox:// protocol handler.")
+                    logger.info("[RobloxLauncher] Dispatched via Windows roblox:// protocol handler.")
 
             t_launched = time.time()
             timestamps["launched"] = t_launched
