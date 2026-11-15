@@ -58,6 +58,17 @@ def create_or_update_release(token, repo, tag, name, body, zip_path):
         with urllib.request.urlopen(req) as resp:
             release_data = json.loads(resp.read().decode())
             print(f"[+] Created release {tag} with ID: {release_data['id']}")
+    else:
+        # Update release title and body
+        update_url = f"https://api.github.com/repos/{repo}/releases/{release_data['id']}"
+        payload = {
+            "name": name,
+            "body": body
+        }
+        req = urllib.request.Request(update_url, data=json.dumps(payload).encode('utf-8'), headers=headers, method="PATCH")
+        with urllib.request.urlopen(req) as resp:
+            release_data = json.loads(resp.read().decode())
+            print(f"[+] Updated release {tag} body and title.")
 
     release_id = release_data['id']
     upload_url = release_data['upload_url'].split('{')[0]
@@ -98,35 +109,58 @@ if __name__ == "__main__":
         exit(1)
 
     repo = "SyphoxYt/pupu-snipes"
-    tag = "v1.1.1"
-    name = "PupuSnipe v1.1.1 — Clickable Join Links, Biome Images & Engine Webhooks"
-    body = """# 🎯 PupuSnipe v1.1.1 — The Ultimate Sol's RNG Private Server Sniper & Macro
+    tag = "v1.1.3"
+    name = "PupuSnipe v1.1.3 — Clickable VIP Join Links, Live Biome Images & Engine Webhooks"
+    body = """## 🎯 PupuSnipe v1.1.3 — Clickable VIP Join Links, Live Biome Images & Engine Webhooks
 
-### 🚀 What's New in v1.1.1:
-- **Prominent Clickable VIP Join Links in Discord**:
-  - Discord's markdown limitation where protocol links (`roblox://`) were unclickable has been solved.
-  - Large banner headline `# 🚀 [👉 CLICK HERE TO JOIN VIP SERVER NOW 👈](https://...)` directly inside the embed description.
-  - Clickable direct link embedded in the `@everyone` notification message.
-  - Dedicated clickable join field supporting UUID gateway instances (`https://xe33cc.github.io/join/?s=...`), share links, and private server links.
-  - Isolated code block ` ```roblox://...``` ` for clean copy-pasting into Windows Run or terminal.
-- **Live Biome Image Forwarding & Fallbacks**:
-  - Automatically fetches and displays biome preview images from incoming Discord embeds and attachments sent by forwarding bots (e.g. Astrald's Hunters, Shay's Glitch Bot in `#🌸dreamspace`, `#🔥glitched`, `#🌐cyberspace-forwarding`).
-  - High-resolution fallback neon banners bundled for all biomes (Dreamspace, Glitched, Cyberspace, Singularity, Corruption, Starfall, Sandstorm, Hell, Rain, Snow).
-- **Engine Start & Stop Webhook Lifecycle Alerts**:
-  - **🟢 STARTED Notification**: Dispatches an alert with the full list of connected channels, target place ID (`15532962292`), launch pipeline, and 10-minute cooldown protection.
-  - **🔴 STOPPED Notification**: Dispatches a session summary embed with total scanned messages, sniped servers, and fastest detect latency.
-- **Webhook Test Button Hanging Fix**:
-  - Replaced thread-unsafe meta-calls with a native Qt Signal (`sig_webhook_tested`) so the "Test Webhook" button immediately re-enables with success/error status and never freezes on *"Sending test ping..."*.
+PupuSnipe v1.1.3 brings a major overhaul to Discord Webhook notifications: fixing join link formatting, adding live Sol's RNG biome embed pictures, real-time sniper lifecycle tracking, and fixing UI test button freezes.
 
-### 📥 Download & Quick Start:
-1. Download `PupuSnipe-v1.1.1-win64.zip` below.
-2. Extract the folder anywhere.
-3. Run `PupuSnipe.exe`!
+---
+
+### 🚀 Clickable VIP Join Links in Discord
+- **Prominent Join Banner**: Solves Discord's limitation where custom protocol links (`roblox://`) are unclickable in markdown. v1.1.3 introduces a prominent clickable headline banner:
+  `# 🚀 [👉 CLICK HERE TO JOIN VIP SERVER NOW 👈](https://...)`
+- **Clickable Pings**: The `@everyone` notification message now contains a direct clickable link to join immediately on mobile, browser, or PC.
+- **Dedicated Link Field**: Displays the direct web URL for UUID gateway instances (`https://xe33cc.github.io/join/?s=...`), share links (`https://www.roblox.com/share-links?code=...`), and private server links.
+- **Protocol Code Block**: The raw `roblox://` protocol link is cleanly formatted in an isolated code block ` ```roblox://...``` ` so desktop players can easily copy it into Windows Run or terminal.
+
+### 🌸 Live Biome Image Forwarding & Fallbacks
+- **Incoming Embed Extraction**: Automatically inspects incoming Discord messages from forwarding bots (such as *Astrald's Hunters* or *Shay's Glitch Bot* in `#🌸dreamspace`, `#🔥glitched`, `#🌐cyberspace-forwarding`) and extracts the original Discord CDN biome image.
+- **Full-Width Embed Image**: Embeds the extracted image directly into the webhook notification (`image.url`).
+- **Bundled Neon Fallback Banners**: If a message lacks an image, PupuSnipe falls back to high-resolution custom neon biome banners for *Dreamspace, Glitched, Cyberspace, Singularity, Corruption, Starfall, Sandstorm, Hell, Rain, and Snow*.
+
+### 📡 Engine Lifecycle Notifications (Start & Stop)
+- **🟢 Engine Started Alert**: Posts a vibrant green embed when the sniper engine starts, detailing:
+  - Connected channels with server and channel names (e.g. `#🌸dreamspace`, `#🔥glitched`).
+  - Target place ID (`15532962292` - Sol's RNG).
+  - Launch pipeline client and method (e.g. `Voidstrap` via `Protocol`).
+  - 10-minute cooldown protection status.
+- **🔴 Engine Stopped Alert**: Posts a vibrant red embed summarizing session metrics:
+  - Total messages scanned.
+  - Total servers sniped.
+  - Fastest detect latency in milliseconds.
+
+### 🛠️ Bug Fixes & Improvements
+- **Fixed Webhook Test Button Hanging**: Replaced the thread-unsafe meta-object call with a native PySide6 signal (`sig_webhook_tested`). The **"🧪 Test Webhook"** button now immediately re-enables with success/error status and never freezes on *"Sending test ping..."*.
+- **Async Daemon Dispatch**: Webhooks and engine status alerts run on isolated daemon threads with 0ms impact on Roblox launch speed.
+
+### 🧪 Quality & Tests
+- **54 Passing Unit Tests**: Comprehensive test suite covering audio presets, webhook payload generation, engine status alerts, and regex link parsing.
+- Compiled as a standalone Windows x64 onedir distribution with instant startup and embedded assets.
+
+---
+
+### 📦 Installation & Quick Start
+1. Download **`PupuSnipe-v1.1.3-win64.zip`** below.
+2. Extract the archive anywhere on your PC.
+3. Run **`PupuSnipe.exe`**!
 """
 
     dist_folder = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe"
-    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.1-win64.zip"
+    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.3-win64.zip"
 
-    zip_dist(dist_folder, zip_dest)
+    if not os.path.exists(zip_dest):
+        zip_dist(dist_folder, zip_dest)
+
     rel_url = create_or_update_release(token, repo, tag, name, body, zip_dest)
     print(f"\n[🎉] Release published successfully at: {rel_url}")

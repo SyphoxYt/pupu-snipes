@@ -389,6 +389,21 @@ To guarantee you join private servers **before other players and public bots**, 
 
 ---
 
+### Phase 15: In-Place Server Hop Fix & Process Preservation Logic (`launcher.py`)
+
+1. **The Issue**:
+   - When Roblox was already running and a private server link was sniped with `roblox_client = "vanilla"` and `launch_method = "direct_exe"`, the launcher bypassed bootstrapper IPC and spawned `RobloxPlayerBeta.exe <protocol_url>` directly.
+   - Because Windows and Roblox enforce single-instance semantics on `RobloxPlayerBeta.exe`, starting a second raw executable terminated the open game window, closed Roblox, and restarted a brand new process from scratch (wasting 5–10 seconds of launch time).
+   - Furthermore, `close_roblox_before_joining` and `leave_game_before_joining` had been saved as true in the local database.
+
+2. **The Fix**:
+   - **Roblox Already Open Branch (PATH 1)**: When `self.is_roblox_running()` is True and `close_roblox_before` is False, PupuSnipe **never** launches `RobloxPlayerBeta.exe` directly.
+   - Instead, it routes the join through the bootstrapper (`[boot, "-player", protocol_url]`) or Windows `ShellExecuteW("open", protocol_url)`, which connects to the active Roblox client via named pipes/IPC and commands the game to teleport immediately **without closing the game window**.
+   - **Bootstrapper Discovery**: Added auto-detection from Windows registry (`roblox\shell\open\command`) so that `Voidstrap.exe` or `Bloxstrap.exe` is resolved wherever installed.
+   - **Database Reset**: Explicitly updated `%LOCALAPPDATA%\PupuSnipe\pupusnipe.db` so `close_roblox_before_joining` and `leave_game_before_joining` default to `false`.
+
+---
+
 ## ⌨️ 5. Global Hotkey Reference
 
 | Hotkey | Action | Default Binding | Configurable |
