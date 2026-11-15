@@ -486,7 +486,7 @@ All code, configurations, tests, and documentation are prepared for automatic pu
   - Added `test_xe33hunt_links` covering raw URLs, markdown formatted links, alternative `/join/` paths, and Discord button components. All 57 unit tests passing.
 
 
-### Phase 18: Web Gateway Protocol Handler Sync — Respect Client Selection for xe33hunt Links (v1.1.4)
+### Phase 18: Web Gateway Protocol Handler Sync — Respect Client Selection for xe33hunt Links (v1.1.5)
 - **Problem**: When the user selected "Normal Roblox (RobloxPlayerBeta.exe)" in PupuSnipe, `xe33hunt.com/j/<token>` links still launched Voidstrap. This happened because the browser gateway flow (ROUTING 0) opened the link in Opera, Cloudflare Turnstile passed, and the browser fired a `roblox://` protocol URI — which Windows routed to Voidstrap because Voidstrap permanently owns the `HKCU\Software\Classes\roblox\shell\open\command` registry key.
 - **Fix (`pupusnipe/core/launcher.py`)**:
   - Added `_set_roblox_protocol_handler(exe_path, is_bootstrapper)` method that temporarily sets the `roblox://` and `roblox-player://` Windows protocol handlers in `HKEY_CURRENT_USER` to point to the user's selected client executable.

@@ -6,6 +6,7 @@ import os
 import sys
 import subprocess
 import shutil
+import time
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "pupusnipe", "assets")
@@ -25,9 +26,14 @@ def build():
     if os.path.isfile(python3t_dll):
         extra_binaries.append(f"--add-binary={python3t_dll};.")
 
+    env = os.environ.copy()
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    env["PYTHONFAULTHANDLER"] = "1"
+
     # Build onedir distribution (prevents decompression code -3 and unlocks instant startup)
     pyinstaller_args = [
         sys.executable,
+        "-X", "faulthandler",
         "-m", "PyInstaller",
         "--name=PupuSnipe",
         "--onedir",
@@ -51,7 +57,7 @@ def build():
     ]
 
     print("[*] Running command:", " ".join(pyinstaller_args))
-    result = subprocess.run(pyinstaller_args, cwd=BASE_DIR)
+    result = subprocess.run(pyinstaller_args, cwd=BASE_DIR, env=env)
     
     if result.returncode == 0:
         exe_path = os.path.join(DIST_DIR, "PupuSnipe", "PupuSnipe.exe")
@@ -91,7 +97,16 @@ def build():
             root_exe = os.path.join(BASE_DIR, "PupuSnipe.exe")
             root_internal = os.path.join(BASE_DIR, "_internal")
             print("[*] Deploying PupuSnipe.exe and dependencies to root directory...")
-            shutil.copy2(exe_path, root_exe)
+            try:
+                shutil.copy2(exe_path, root_exe)
+            except Exception as ex:
+                print(f"[!] Note: Could not copy root exe directly ({ex}), retrying with force...")
+                try:
+                    subprocess.run(["taskkill", "/F", "/IM", "PupuSnipe.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    time.sleep(1)
+                    shutil.copy2(exe_path, root_exe)
+                except Exception as ex2:
+                    print(f"[!] Warning copying root exe: {ex2}")
             if os.path.exists(dist_internal):
                 shutil.copytree(dist_internal, root_internal, dirs_exist_ok=True)
             print(f"[+] Root executable ready at: {root_exe}")

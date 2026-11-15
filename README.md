@@ -80,7 +80,7 @@ PupuSnipe seamlessly extracts, validates, and launches every Sol's RNG join link
 
 ## 📦 Installation & Quick Start
 
-1. Download the latest release: **[`PupuSnipe-v1.1.4-win64.zip`](https://github.com/SyphoxYt/pupu-snipes/releases)**
+1. Download the latest release: **[`PupuSnipe-v1.1.5-win64.zip`](https://github.com/SyphoxYt/pupu-snipes/releases)**
 2. Extract the archive to any folder on your PC.
 3. Run **`PupuSnipe.exe`**.
 4. In the **Sniper** tab, enter your Discord Bot Token or user token (stored securely in Windows Credential Manager via DPAPI).

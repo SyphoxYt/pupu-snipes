@@ -121,48 +121,51 @@ if __name__ == "__main__":
         exit(1)
 
     repo = "SyphoxYt/pupu-snipes"
-    tag = "1.1.4"
-    name = "PupuSnipe v1.1.4 — xe33Hunt Gateway, Normal Roblox Isolation, Clickable Webhook Links & README"
-    body = """## 🎯 PupuSnipe v1.1.4 — xe33Hunt Gateway, Normal Roblox Isolation, Clickable Webhook Links & README
+    tag = "1.1.5"
+    name = "PupuSnipe v1.1.5 — xe33Hunt Protocol Sync & Web Gateway Client Routing"
+    body = """## 🎯 PupuSnipe v1.1.5 — xe33Hunt Protocol Sync & Web Gateway Client Routing
 
-PupuSnipe v1.1.4 adds complete support for `xe33hunt.com` private server join links, delivers strict Normal Roblox (`RobloxPlayerBeta.exe`) launch isolation, fixes Discord Webhook join links to be 100% clickable across all devices, adds a comprehensive GitHub README, and introduces a strict proprietary LICENSE.
+PupuSnipe v1.1.5 ensures that `xe33hunt.com` web gateway links always launch through the **correct Roblox client** you selected (Normal Roblox vs Voidstrap). Previously, xe33hunt links opened in the browser and always triggered Voidstrap regardless of your PupuSnipe setting — this is now fixed.
 
 ---
 
+### 🔧 Web Gateway Protocol Handler Sync (NEW)
+- **Respects Your Client Selection**: Before opening an xe33hunt link in the browser, PupuSnipe now temporarily sets the Windows `roblox://` protocol handler to match your selected client.
+- **Normal Roblox selected** → registry set to `RobloxPlayerBeta.exe` → Turnstile passes → vanilla Roblox launches ✅
+- **Voidstrap selected** → registry set to `Voidstrap.exe` → Turnstile passes → Voidstrap launches ✅
+- **No more accidental Voidstrap launches** when you have Normal Roblox selected and an xe33hunt link fires.
+
 ### 🌐 `xe33hunt.com` Private Server Gateway Support
-- **Support for xe33Hunt Links**: Added high-speed regex parsing for `https://xe33hunt.com/j/<token>` and `https://xe33hunt.com/join/<token>`.
-- **Automatic Browser Gateway Dispatch**: Web gateway links are seamlessly routed to your default browser to automatically pass Cloudflare Turnstile verification and trigger native Roblox client launch.
-- **Anti-Phishing Whitelisting**: Whitelisted `xe33hunt.com` in the anti-phishing module so legitimate Sol's RNG join links pass through instantly while malicious spoofed domains remain blocked.
+- **Full xe33Hunt Link Detection**: High-speed regex parsing for `https://xe33hunt.com/j/<token>` and `https://xe33hunt.com/join/<token>`.
+- **Automatic Browser Gateway Dispatch**: Web gateway links are routed to your default browser for Cloudflare Turnstile verification, then the correct client launches automatically.
+- **Anti-Phishing Whitelisting**: `xe33hunt.com` whitelisted in the anti-phishing module — legitimate join tokens pass instantly, malicious domains stay blocked.
 
 ### 🚀 Strict Normal Roblox Isolation
-- **Strict Client Routing**: When the user selects **"Normal Roblox (RobloxPlayerBeta.exe)"**, PupuSnipe exclusively resolves and spawns official Roblox (`RobloxPlayerBeta.exe`).
-- **Never Triggers Voidstrap**: Fixed a logic bug where selecting "Direct Bootstrapper / Client Launch" while having Normal Roblox selected previously fell into Voidstrap launch routines. Voidstrap/Bloxstrap detection is now strictly bypassed when set to Normal Roblox.
-- **Fast In-Game Server Hopping**: When Roblox is already running, launching `RobloxPlayerBeta.exe <protocol_url>` directs the active Roblox client to hop servers instantly without closing and reopening the game window.
-- **Independent Scanner Caches**: Vanilla Roblox and custom bootstrappers now maintain independent cache entries to avoid path cross-contamination.
+- **Strict Client Routing**: Selecting "Normal Roblox" exclusively spawns `RobloxPlayerBeta.exe` — Voidstrap is never touched.
+- **Fast In-Game Server Hopping**: If Roblox is already running, the new join arguments route to the active process for an instant in-game hop.
 
 ### 🔗 100% Clickable Discord Webhook Links
-- **Fixed Broken Discord Markdown**: Fixed the issue where raw URLs wrapped in markdown brackets `[**👉 https://... 👈**](https://...)` broke Discord's markdown parser, rendering unclickable raw text.
-- **Prominent Clickable Headline**: Clean `# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW](https://...)` header button.
-- **Dual Direct Join Link**: The Direct Join Link field now provides both a clean clickable label `[👉 Click Here to Open VIP Server 👈](https://...)` AND the bare URL on its own line, ensuring 100% clickability across desktop, browser, iOS, and Android clients.
-- **Clean Windows Run (Win + R) Protocol**: Replaced broken markdown links with a clean, single-click copyable code block ` ```roblox://...``` ` specifically intended for Windows Run (`Win + R`).
+- **Prominent Clickable Headline**: Clean `# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW](https://...)` header.
+- **Dual Direct Join Link**: Clickable label + bare URL on its own line — 100% clickable across desktop, mobile, and browser.
+- **Windows Run (Win + R) Protocol**: Clean copyable code block for `roblox://` URIs.
 
-### 📖 Professional GitHub README & Proprietary LICENSE
-- **Official GitHub README**: Restored the corrupt zero-byte binary file to a modern GitHub README with shields, architecture breakdown, full feature set, link format reference, and global hotkeys table.
-- **Proprietary Software LICENSE**: Comprehensive All-Rights-Reserved proprietary license strictly prohibiting code theft, copying, decompilation, redistribution, or derivative works.
+### 📖 README & LICENSE
+- **Professional GitHub README** with shields, architecture overview, link format reference, and hotkey table.
+- **Strict Proprietary LICENSE** — no copying, stealing, decompiling, or redistribution allowed.
 
-### 🧪 Robust Test Suite
-- **57 Passing Unit Tests**: Comprehensive automated test coverage across link detector, vanilla/bootstrapper isolation, webhook payload generation, and Discord gateway streaming.
+### 🧪 57 Passing Unit Tests
+- Comprehensive automated coverage across link detection, client isolation, webhook payloads, and Discord gateway streaming.
 
 ---
 
 ### 📦 Installation & Quick Start
-1. Download **`PupuSnipe-v1.1.4-win64.zip`** below.
+1. Download **`PupuSnipe-v1.1.5-win64.zip`** below.
 2. Extract the archive anywhere on your PC.
 3. Run **`PupuSnipe.exe`**!
 """
 
     dist_folder = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe"
-    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.4-win64.zip"
+    zip_dest = r"C:\Users\botak\Downloads\pupusnipes\dist\PupuSnipe-v1.1.5-win64.zip"
 
     zip_dist(dist_folder, zip_dest)
     rel_url = create_or_update_release(token, repo, tag, name, body, zip_dest)
