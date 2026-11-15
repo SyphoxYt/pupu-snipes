@@ -175,7 +175,7 @@ def build_snipe_payload(event: Dict[str, Any], ping_everyone: bool = True) -> Di
         }
     ]
 
-    if protocol_url:
+    if protocol_url and protocol_url.startswith("roblox://"):
         fields.append({
             "name": "💻 Windows Run Protocol (Win + R)",
             "value": f"```{protocol_url}```\n*(Copy and paste into Windows Run `Win+R` to join directly)*",

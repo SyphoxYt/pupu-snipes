@@ -466,3 +466,21 @@ All code, configurations, tests, and documentation are prepared for automatic pu
    - `POST https://api.github.com/repos/SyphoxYt/pupu-snipes/releases`
    - `POST https://uploads.github.com/repos/SyphoxYt/pupu-snipes/releases/<id>/assets?name=<zip>`
 4. Download URL format: `https://github.com/SyphoxYt/pupu-snipes/releases/download/<tag>/<zip>`
+
+
+### Phase 17: `xe33hunt.com` Gateway Support, Comprehensive README & Proprietary License (v1.1.4)
+- **`xe33hunt.com` Link Detection (`pupusnipe/core/detector.py`)**:
+  - Added support for Cloudflare Turnstile-protected private server join gateways matching `https://xe33hunt.com/j/<token>` and `/join/<token>`.
+  - Added `RE_XE33HUNT` regex to capture base64url tokens (`token = match.group(1)`).
+  - Whitelisted `xe33hunt.com` in `is_phishing_url()` to allow legitimate join tokens while preserving strict anti-phishing protection against unauthorized third-party domains.
+  - Linked to `place_id=15532962292` (Sol's RNG join gateway place) with `link_type="joingate"`.
+- **Web Gateway Dispatch (`pupusnipe/core/launcher.py`)**:
+  - In `launch()`, added Route 0 for web gateway URLs: if `protocol_url` starts with `http://` or `https://`, PupuSnipe dispatches directly to the default Windows web browser via `ShellExecuteW("open", protocol_url)` / `os.startfile(protocol_url)` instead of passing HTTP URLs directly to `RobloxPlayerBeta.exe` (which would fail because the client only accepts `roblox://` URIs). This allows the Turnstile verification to complete and naturally trigger the game launch.
+- **Webhook Protocol URL Cleanup (`pupusnipe/core/webhook.py`)**:
+  - Ensured that only native `roblox://` URIs are formatted inside Windows Run (`Win + R`) code blocks, avoiding confusion with web links.
+- **Comprehensive GitHub `README.md`**:
+  - Replaced the corrupt zero-byte binary file with an informative, professional markdown documentation file featuring badges, architecture overview, full feature breakdown, link format support list, global hotkeys reference table, and quick start guide.
+- **Strict Proprietary `LICENSE`**:
+  - Created an All Rights Reserved proprietary software license strictly prohibiting the copying, stealing, decompiling, redistribution, commercialization, or creation of derivative works from PupuSnipe's codebase, algorithms, and binaries.
+- **Test Suite**:
+  - Added `test_xe33hunt_links` covering raw URLs, markdown formatted links, alternative `/join/` paths, and Discord button components. All 57 unit tests passing.

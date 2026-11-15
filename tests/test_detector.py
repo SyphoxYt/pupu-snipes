@@ -339,6 +339,39 @@ class TestLinkDetector(unittest.TestCase):
         self.assertTrue(link_rev.is_valid)
         self.assertEqual(link_rev.place_id, "15532962292")
 
+    def test_xe33hunt_links(self):
+        # 1. Exact sample link from user
+        sample = "https://xe33hunt.com/j/AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78"
+        link = self.detector.extract_from_text(sample)
+        self.assertIsNotNone(link)
+        self.assertTrue(link.is_valid)
+        self.assertFalse(link.is_phishing)
+        self.assertEqual(link.link_type, "joingate")
+        self.assertEqual(link.link_code, "AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78")
+        self.assertEqual(link.protocol_url, sample)
+
+        # 2. Markdown wrapped link
+        md_sample = "[Click Here to Join](https://xe33hunt.com/j/AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78)"
+        link_md = self.detector.extract_from_text(md_sample)
+        self.assertIsNotNone(link_md)
+        self.assertTrue(link_md.is_valid)
+        self.assertEqual(link_md.link_code, "AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78")
+
+        # 3. xe33hunt with /join/ path
+        join_sample = "https://xe33hunt.com/join/AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78"
+        link_join = self.detector.extract_from_text(join_sample)
+        self.assertIsNotNone(link_join)
+        self.assertTrue(link_join.is_valid)
+        self.assertEqual(link_join.link_code, "AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78")
+
+        # 4. Message with button component
+        extracted, text = self.detector.extract_from_message(
+            content="Glitched spawned! Join now!",
+            components=[{"components": [{"label": "Join Server", "url": sample}]}]
+        )
+        self.assertIsNotNone(extracted)
+        self.assertEqual(extracted.link_code, "AfAfh78ebY2TQxePR_9xG0H5waoDAtSQDCWqBLIXc_rXwOqZfYarjKZW8nF6NoAVXOCHt78")
+
 
 if __name__ == "__main__":
     unittest.main()

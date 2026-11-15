@@ -119,6 +119,12 @@ RE_JOIN_GATEWAY_PATH = re.compile(
     re.IGNORECASE
 )
 
+# xe33Hunt links (e.g. https://xe33hunt.com/j/<token> or /join/<token>)
+RE_XE33HUNT = re.compile(
+    r'https?://(?:[a-zA-Z0-9_\-]+\.)*xe33hunt\.com/(?:j|join)/(?:[^?#\s<>\)"\']*?[?&](?:s|id)=)?([a-zA-Z0-9_\-]{16,128})',
+    re.IGNORECASE
+)
+
 # Suspicious / phishing domain indicators
 SUSPICIOUS_PATTERNS = [
     re.compile(r'robl[o0]x[^\.]*\.[a-z]+', re.IGNORECASE),
@@ -179,7 +185,7 @@ class LinkDetector:
     def is_phishing_url(self, text: str) -> bool:
         """Check for known phishing patterns and malicious typosquatting."""
         # Allow legit custom domains
-        allowed_custom = ["ro.pro", "ropro.io", "join-rbx.vexsys.site", "roseal.live", "fishstrap.app"]
+        allowed_custom = ["ro.pro", "ropro.io", "join-rbx.vexsys.site", "roseal.live", "fishstrap.app", "xe33hunt.com", "xe33cc.github.io"]
         for domain in allowed_custom:
             if domain in text.lower():
                 return False
@@ -657,8 +663,25 @@ class LinkDetector:
                     link_type="fishstrap"
                 )
 
-        # 8. Join-gateway pages (e.g. https://xe33cc.github.io/join/?s=<UUID>)
+        # 8. Join-gateway pages (xe33hunt.com & xe33cc.github.io)
         if self.snipe_joingate:
+            xe33_match = RE_XE33HUNT.search(clean_text)
+            if xe33_match:
+                token = xe33_match.group(1)
+                raw_u = xe33_match.group(0)
+                if len(token) == 36 and "-" in token:
+                    proto_url = f"roblox://experiences/start?placeId={JOIN_GATEWAY_PLACE_ID}&gameInstanceId={token}"
+                else:
+                    proto_url = raw_u
+                return ExtractedLink(
+                    raw_url=raw_u,
+                    place_id=JOIN_GATEWAY_PLACE_ID,
+                    link_code=token,
+                    protocol_url=proto_url,
+                    is_valid=True,
+                    link_type="joingate"
+                )
+
             gateway_match = RE_JOIN_GATEWAY_QUERY.search(clean_text)
             if not gateway_match:
                 gateway_match = RE_JOIN_GATEWAY_PATH.search(clean_text)

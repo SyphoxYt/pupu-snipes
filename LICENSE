@@ -1,0 +1,75 @@
+PROPRIETARY SOFTWARE LICENSE & TERMS OF USE
+=============================================
+Copyright (C) 2026 SyphoxYt / PupuSnipe Project. All Rights Reserved.
+
+IMPORTANT: PLEASE READ CAREFULLY BEFORE DOWNLOADING, ACCESSING, CLONING,
+OR USING ANY PART OF THIS SOFTWARE REPOSITORY, CODEBASE, OR BINARIES.
+
+By downloading, copying, inspecting, compiling, executing, or otherwise using
+the PupuSnipe software, documentation, assets, and source code (hereinafter
+referred to as the "Software"), you agree to be bound by the terms and
+conditions of this Proprietary License. If you do not agree to these terms,
+do not access, download, clone, or use the Software.
+
+1. OWNERSHIP & INTELLECTUAL PROPERTY
+------------------------------------
+The Software and all worldwide intellectual property rights therein, including
+without limitation all copyrights, patents, trade secret rights, trademarks,
+algorithms, architectures, UI design, link detection routines, and protocol
+dispatch methods, are and shall remain the exclusive property of SyphoxYt and
+the PupuSnipe Project. This license is not a sale of the Software or any copy.
+
+2. STRICT PROHIBITIONS ON COPYING, STEALING, AND DERIVATIVE WORKS
+-----------------------------------------------------------------
+You are strictly prohibited from:
+  a. Copying, duplicating, reproducing, or republishing the source code,
+     assets, or binaries of this Software, in whole or in part, without prior
+     written authorization from the copyright holder.
+  b. Stealing, borrowing, porting, or adapting any algorithmic logic, regex
+     patterns, gateway parsers, Discord WebSocket ingestion pipelines, logging
+     parsers, or macro state machines into any other software, script, or bot.
+  c. Creating derivative works, competing snipers, competing Roblox automation
+     tools, or public/private forks that reuse or redistribute code from this
+     repository.
+  d. Reverse engineering, decompiling, disassembling, decrypting, or otherwise
+     attempting to derive or extract the source code from any compiled binaries
+     (`.exe`, `.pyd`, `.zip`) distributed by the copyright holder.
+  e. Sublicensing, leasing, renting, selling, reselling, or commercially
+     exploiting the Software or any portion thereof.
+
+3. UNAUTHORIZED REDISTRIBUTION & RE-HOSTING
+-------------------------------------------
+Redistribution of this Software, whether modified or unmodified, compiled or
+uncompiled, is strictly prohibited. You may not upload, re-host, mirror, or
+distribute the Software on third-party websites, Discord servers, GitHub
+repositories, file-sharing platforms, or forums without express written consent.
+The only authorized distribution channels are the official GitHub repository
+(https://github.com/SyphoxYt/pupu-snipes) and releases published directly by
+SyphoxYt.
+
+4. PERMITTED PERSONAL USE ONLY
+------------------------------
+Subject to your continued compliance with these terms, you are granted a
+revocable, non-exclusive, non-transferable, personal license to download and
+execute official releases of the Software solely for individual, non-commercial
+gaming and automation purposes on your personal computer.
+
+5. ENFORCEMENT & VIOLATIONS
+---------------------------
+Any unauthorized copying, distribution, decompilation, theft, or use of the
+Software will result in immediate termination of any license granted herein and
+may subject you to severe civil and criminal penalties under applicable
+copyright and intellectual property laws (including the Digital Millennium
+Copyright Act and international copyright treaties). The copyright owner
+reserves the right to issue DMCA takedown notices, pursue civil injunctions,
+and seek statutory damages against infringing parties.
+
+6. DISCLAIMER OF WARRANTIES & LIMITATION OF LIABILITY
+-----------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

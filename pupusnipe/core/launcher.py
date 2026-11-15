@@ -454,8 +454,19 @@ class RobloxLauncher:
         try:
             launched_successfully = False
 
+            # ROUTING 0: Web Gateway Join URL (e.g. xe33hunt.com, browser redirect portals)
+            if protocol_url.startswith("http://") or protocol_url.startswith("https://"):
+                if sys.platform == "win32":
+                    res = ctypes.windll.shell32.ShellExecuteW(None, "open", protocol_url, None, None, 1)
+                    if res <= 32:
+                        os.startfile(protocol_url)
+                else:
+                    os.startfile(protocol_url)
+                launched_successfully = True
+                logger.info(f"[RobloxLauncher] Dispatched web gateway join link to default browser: {protocol_url}")
+
             # STRICT ROUTING 1: User explicitly chose Normal Roblox (Vanilla)
-            if client == "vanilla":
+            elif client == "vanilla":
                 exe = self.find_roblox_executable(force_vanilla=True)
                 if exe:
                     # Pure direct launch of RobloxPlayerBeta.exe with protocol url.
