@@ -122,12 +122,17 @@ if __name__ == "__main__":
 
     repo = "SyphoxYt/pupu-snipes"
     tag = "1.1.4"
-    name = "PupuSnipe v1.1.4 — Strict Normal Roblox Isolation & Discord Clickable Hyperlinks"
-    body = """## 🎯 PupuSnipe v1.1.4 — Strict Normal Roblox Isolation & Discord Clickable Hyperlinks
+    name = "PupuSnipe v1.1.4 — xe33Hunt Gateway, Normal Roblox Isolation, Clickable Webhook Links & README"
+    body = """## 🎯 PupuSnipe v1.1.4 — xe33Hunt Gateway, Normal Roblox Isolation, Clickable Webhook Links & README
 
-PupuSnipe v1.1.4 fixes two critical issues: strictly enforcing Normal Roblox (`RobloxPlayerBeta.exe`) launch isolation so it never accidentally invokes Voidstrap, and fixing Discord Webhook join links so they are 100% clickable across all devices (PC, Mobile, and Web).
+PupuSnipe v1.1.4 adds complete support for `xe33hunt.com` private server join links, delivers strict Normal Roblox (`RobloxPlayerBeta.exe`) launch isolation, fixes Discord Webhook join links to be 100% clickable across all devices, adds a comprehensive GitHub README, and introduces a strict proprietary LICENSE.
 
 ---
+
+### 🌐 `xe33hunt.com` Private Server Gateway Support
+- **Support for xe33Hunt Links**: Added high-speed regex parsing for `https://xe33hunt.com/j/<token>` and `https://xe33hunt.com/join/<token>`.
+- **Automatic Browser Gateway Dispatch**: Web gateway links are seamlessly routed to your default browser to automatically pass Cloudflare Turnstile verification and trigger native Roblox client launch.
+- **Anti-Phishing Whitelisting**: Whitelisted `xe33hunt.com` in the anti-phishing module so legitimate Sol's RNG join links pass through instantly while malicious spoofed domains remain blocked.
 
 ### 🚀 Strict Normal Roblox Isolation
 - **Strict Client Routing**: When the user selects **"Normal Roblox (RobloxPlayerBeta.exe)"**, PupuSnipe exclusively resolves and spawns official Roblox (`RobloxPlayerBeta.exe`).
@@ -139,11 +144,14 @@ PupuSnipe v1.1.4 fixes two critical issues: strictly enforcing Normal Roblox (`R
 - **Fixed Broken Discord Markdown**: Fixed the issue where raw URLs wrapped in markdown brackets `[**👉 https://... 👈**](https://...)` broke Discord's markdown parser, rendering unclickable raw text.
 - **Prominent Clickable Headline**: Clean `# 🚀 [CLICK HERE TO JOIN VIP SERVER NOW](https://...)` header button.
 - **Dual Direct Join Link**: The Direct Join Link field now provides both a clean clickable label `[👉 Click Here to Open VIP Server 👈](https://...)` AND the bare URL on its own line, ensuring 100% clickability across desktop, browser, iOS, and Android clients.
-- **Clean Windows Run (Win + R) Protocol**: Removed the broken `roblox://` markdown link (which Discord security policies disallow and render as raw text) and replaced it with a clean, single-click copyable code block ` ```roblox://...``` ` specifically intended for Windows Run (`Win + R`).
+- **Clean Windows Run (Win + R) Protocol**: Replaced broken markdown links with a clean, single-click copyable code block ` ```roblox://...``` ` specifically intended for Windows Run (`Win + R`).
 
-### 🛠️ Additional Polish
-- **Updated UI Combos**: Clarified launcher method dropdown to explicitly show `Direct Client / Bootstrapper Launch (RobloxPlayerBeta / Voidstrap)`.
-- **56 Comprehensive Unit Tests**: Added unit tests verifying strict vanilla client isolation and bootstrapper decoupling.
+### 📖 Professional GitHub README & Proprietary LICENSE
+- **Official GitHub README**: Restored the corrupt zero-byte binary file to a modern GitHub README with shields, architecture breakdown, full feature set, link format reference, and global hotkeys table.
+- **Proprietary Software LICENSE**: Comprehensive All-Rights-Reserved proprietary license strictly prohibiting code theft, copying, decompilation, redistribution, or derivative works.
+
+### 🧪 Robust Test Suite
+- **57 Passing Unit Tests**: Comprehensive automated test coverage across link detector, vanilla/bootstrapper isolation, webhook payload generation, and Discord gateway streaming.
 
 ---
 
